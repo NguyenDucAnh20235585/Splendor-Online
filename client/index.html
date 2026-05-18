@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div id="setupScreen">
+  <h1>Splendor</h1>
+  <button id="startBotMode">Single Player</button>
+  <button id="startMultiplayerMode">Multiplayer</button>
+  <div class="setupField">
+  <label for="playerCountSelect">Total Players</label>
+  <select id="playerCountSelect">
+    <option value="2">2 Players</option>
+    <option value="3" selected>3 Players</option>
+    <option value="4">4 Players</option>
+  </select>
+  </div>
+  </div>
+
+  <div id="gameScreen">
+
+  <div id="modePanel" class="panel">
+  <h2>Game Mode</h2>
+  <button id="modeBot">Vs Bot</button>
+  <button id="modeMultiplayer">Multiplayer</button>
+  <div>Current mode: <span id="currentModeLabel">Vs Bot</span></div>
+  </div>
+
+  <div id="leftSection">
+  <section id="playersOverviewPanel" class="panel">
+  <h2>Other Players</h2>
+  <div id="playersOverview"></div>
+  </section>
+  </div>
+
+  <div id="middleSection">
+
+  <section id="bankPanel" class="panel">
+    <h2>Bank</h2>
+
+    <div id="bankChips">
+      <div class="bank-chip red" data-color="Red">
+        <span class="bank-chip-label">Red</span>
+        <span id="bankRemainingRedChip">7</span>
+      </div>
+
+      <div class="bank-chip green" data-color="Green">
+        <span class="bank-chip-label">Green</span>
+        <span id="bankRemainingGreenChip">7</span>
+      </div>
+
+      <div class="bank-chip blue" data-color="Blue">
+        <span class="bank-chip-label">Blue</span>
+        <span id="bankRemainingBlueChip">7</span>
+      </div>
+
+      <div class="bank-chip black" data-color="Black">
+        <span class="bank-chip-label">Black</span>
+        <span id="bankRemainingBlackChip">7</span>
+      </div>
+
+      <div class="bank-chip white" data-color="White">
+        <span class="bank-chip-label">White</span>
+        <span id="bankRemainingWhiteChip">7</span>
+      </div>
+
+      <div class="bank-chip wild">
+        <span class="bank-chip-label">Wild</span>
+        <span id="bankRemainingWildChip">5</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="noblesPanel" class="panel">
+    <h2>Nobles</h2>
+    <div id="noblesArea" class="nobles-row"></div>
+  </section>
+
+<section id="market">
+  <h2>Market</h2>
+
+  <div id="marketArea">
+    <div id="marketTier3"></div>
+    <div id="marketTier2"></div>
+    <div id="marketTier1"></div>
+  </div>
+</section>
+
+  </div>
+  
+  <div id="rightSection">
+
+  <div id="gameLog">Game started. Player 1's turn.</div>
+
+  <section id="currentPlayerPanel" class="panel">
+
+  <div class="current-player-header">
+    <strong id="currentPlayerLabel">Player 1</strong>
+    <span class="player-vp">★ <span id="currentPlayerVictoryPoints">0</span></span>
+  </div>
+
+  <div id="bonusChip" class="right-player-row">
+    <span class="player-row-label">Bonus</span>
+
+    <div class="piece-group bonus-group">
+      <span class="player-piece bonus-piece red" title="Red">
+        <strong id="currentPlayerRedBonus">0</strong>
+      </span>
+
+      <span class="player-piece bonus-piece green" title="Green">
+        <strong id="currentPlayerGreenBonus">0</strong>
+      </span>
+
+      <span class="player-piece bonus-piece blue" title="Blue">
+        <strong id="currentPlayerBlueBonus">0</strong>
+      </span>
+
+      <span class="player-piece bonus-piece black" title="Black">
+        <strong id="currentPlayerBlackBonus">0</strong>
+      </span>
+
+      <span class="player-piece bonus-piece white" title="White">
+        <strong id="currentPlayerWhiteBonus">0</strong>
+      </span>
+    </div>
+  </div>
+
+  <div class="right-player-row">
+    <span class="player-row-label">Chips</span>
+
+    <div class="piece-group chip-group">
+      <button class="chipButton chip-piece-button" data-action="add" data-color="Red" title="Take Red">
+        <span class="player-piece chip-piece red">
+          <strong id="currentPlayerRedChip">0</strong>
+        </span>
+      </button>
+
+      <button class="chipButton chip-piece-button" data-action="add" data-color="Green" title="Take Green">
+        <span class="player-piece chip-piece green">
+          <strong id="currentPlayerGreenChip">0</strong>
+        </span>
+      </button>
+
+      <button class="chipButton chip-piece-button" data-action="add" data-color="Blue" title="Take Blue">
+        <span class="player-piece chip-piece blue">
+          <strong id="currentPlayerBlueChip">0</strong>
+        </span>
+      </button>
+
+      <button class="chipButton chip-piece-button" data-action="add" data-color="Black" title="Take Black">
+        <span class="player-piece chip-piece black">
+          <strong id="currentPlayerBlackChip">0</strong>
+        </span>
+      </button>
+
+      <button class="chipButton chip-piece-button" data-action="add" data-color="White" title="Take White">
+        <span class="player-piece chip-piece white">
+          <strong id="currentPlayerWhiteChip">0</strong>
+        </span>
+      </button>
+
+      <span class="player-piece chip-piece wild" title="Wild">
+        <strong id="currentPlayerWildChip">0</strong>
+      </span>
+    </div>
+  </div>
+  </section>
+
+    <div id="actionPanel" class="panel action-panel">
+      <h2>Actions</h2>
+
+      <div class="action-buttons">
+        <button id="confirmTake">Take Chips</button>
+        <button id="buyModeButton">Buy Card</button>
+        <button id="reserveModeButton">Reserve Card</button>
+        <button id="cancelAction">Cancel</button>
+        <button id="clearTake" hidden>Clear</button>
+        <button id="confirmReserve" hidden>Confirm Reserve</button>
+        <button id="debugEndGame" hidden>Debug End Game</button>
+      </div>
+
+      <div id="actionStatus" class="action-status">
+      <div>
+        <strong>Mode:</strong>
+        <span id="actionModeText">Take Chips</span>
+      </div>
+
+      <div>
+        <strong>Selected:</strong>
+        <span id="selectedText">none</span>
+      </div>
+
+      <div id="actionHintText" class="action-hint">
+        Pick chips from Bank, then press Take Chips.
+      </div>
+
+      <div>
+        <strong>Selected card:</strong>
+        <span id="selectedReserveText">none</span>
+      </div>
+
+      <div id="takeError"></div>
+    </div>
+
+  <section id="ReservedCardsPanel" class="panel">
+    <h2>Reserved Cards</h2>
+    <div id="currentPlayerReservedCards"></div>
+  </section>
+
+  </div>
+
+  </div>
+<script src="index.js"></script>
+
+</body>
+</html>

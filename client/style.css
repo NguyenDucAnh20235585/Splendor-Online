@@ -1,0 +1,551 @@
+/* =========================
+   Base
+========================= */
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #f3efe6;
+  color: #222;
+}
+
+/* =========================
+   Color system
+========================= */
+.red { background: #c94a4a; }
+.green { background: #4f9d69; }
+.blue { background: #4a78c9; }
+.black { background: black; }
+.white { background: azure; color: black; }
+.wild { background: gold; color: black; }
+
+/* =========================
+   Layout
+========================= */
+#gameScreen {
+  display: grid;
+  grid-template-columns: 260px minmax(640px, 1fr) 340px;
+  grid-template-areas: "left middle right";
+  gap: 12px;
+  align-items: start;
+}
+
+#leftSection { grid-area: left; }
+
+#middleSection {
+  grid-area: middle;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#rightSection {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#modePanel {
+  display: none;
+}
+
+/* =========================
+   Shared panels
+========================= */
+.panel,
+#market,
+#gameLog {
+  background: rgba(255, 250, 240, 0.92);
+  border: 1px solid #d2c2a5;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.panel h2,
+#market h2,
+.collected-nobles-panel h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+}
+
+#gameLog {
+  min-height: 80px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* =========================
+   Buttons
+========================= */
+.chipButton,
+#confirmTake,
+#clearTake,
+#buyModeButton,
+#reserveModeButton,
+#confirmReserve,
+#cancelAction,
+#debugEndGame,
+.buyCardButton,
+.buyReservedCardButton {
+  cursor: pointer;
+  border: 1px solid #9c8f78;
+  border-radius: 8px;
+  background: #fffaf0;
+  padding: 5px 8px;
+}
+
+.chipButton:hover,
+#confirmTake:hover,
+#clearTake:hover,
+#buyModeButton:hover,
+#reserveModeButton:hover,
+#confirmReserve:hover,
+#cancelAction:hover,
+#debugEndGame:hover,
+.buyCardButton:hover,
+.buyReservedCardButton:hover {
+  background: #efe2c8;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* =========================
+   Cards / Market / Nobles
+========================= */
+.card {
+  width: 100%;
+  min-width: 0;
+  min-height: 96px;
+  padding: 7px;
+  border: 1px solid #999;
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: rgba(255, 250, 240, 0.9);
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-points {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.card-bonus,
+.noble-badge {
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.noble-badge {
+  background: #8a6f3d;
+}
+
+.card-middle {
+  margin: 2px 0 4px 0;
+}
+
+.card-costs,
+.noble-costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.buyCardButton {
+  margin-top: 4px;
+  padding: 3px 7px;
+  font-size: 12px;
+}
+
+#market {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+#marketArea {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#marketTier3,
+#marketTier2,
+#marketTier1 {
+  display: grid;
+  grid-template-columns: 92px repeat(4, minmax(110px, 1fr));
+  gap: 10px;
+  overflow: visible;
+  padding-bottom: 4px;
+}
+
+#noblesPanel {
+  margin-bottom: 16px;
+}
+
+.nobles-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  overflow: visible;
+  align-items: stretch;
+}
+
+.noble-card,
+#noblesArea .card {
+  width: 100%;
+  min-width: 0;
+  min-height: 86px;
+  box-sizing: border-box;
+}
+
+/* =========================
+   Color pieces: bonus rectangles / chip circles
+========================= */
+.piece-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.player-piece,
+.color-piece {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+}
+
+.player-piece.red,
+.player-piece.green,
+.player-piece.blue,
+.player-piece.black,
+.color-piece.red,
+.color-piece.green,
+.color-piece.blue,
+.color-piece.black {
+  color: white;
+}
+
+.player-piece.white,
+.color-piece.white {
+  background: azure;
+  color: black;
+}
+
+.player-piece.wild,
+.color-piece.wild {
+  background: gold;
+  color: black;
+}
+
+.bonus-piece,
+.noble-costs .bonus-piece {
+  width: 34px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.chip-piece,
+.card-costs .chip-piece {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+/* =========================
+   Bank
+========================= */
+#bankPanel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+}
+
+#bankPanel h2 {
+  margin: 0;
+  font-size: 16px;
+  min-width: 44px;
+}
+
+#bankChips {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bank-chip {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-weight: bold;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+}
+
+.bank-chip.red,
+.bank-chip.green,
+.bank-chip.blue,
+.bank-chip.black {
+  color: white;
+}
+
+.bank-chip.white {
+  background: azure;
+  color: black;
+}
+
+.bank-chip.wild {
+  background: gold;
+  color: black;
+}
+
+.bank-chip-label {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bank-chip span:last-child {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* =========================
+   Left: other players
+========================= */
+#playersOverview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-overview-card {
+  background: rgba(255, 250, 240, 0.92);
+  border: 1px solid #b8aa90;
+  border-radius: 12px;
+  padding: 10px;
+  position: relative;
+}
+
+.player-overview-card.is-current {
+  border: 2px solid #d6a640;
+  box-shadow: 0 0 0 2px rgba(214, 166, 64, 0.18);
+}
+
+.player-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.player-vp {
+  min-width: 42px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff3c4, #e0b94f);
+  border: 1px solid #a9821f;
+  color: #4d3500;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.player-card-row,
+.right-player-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.player-row-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #5f5648;
+}
+
+.player-card-footer {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.player-card-footer span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid #d2c2a5;
+}
+
+/* =========================
+   Right: current player / actions
+========================= */
+#currentPlayerPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.current-player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#bonusChip {
+  padding: 8px;
+  border: 1px solid #ddd0b8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.chip-piece-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.chip-piece-button:hover {
+  background: transparent;
+  transform: translateY(-1px);
+}
+
+.chip-piece-button:disabled {
+  opacity: 0.45;
+}
+
+.action-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selected-line {
+  font-size: 13px;
+  color: #5f5648;
+}
+
+.action-status {
+  padding: 8px;
+  border: 1px solid #d2c2a5;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.action-status strong {
+  color: #5f5648;
+}
+
+#actionModeText {
+  font-weight: bold;
+  color: #8a5a00;
+}
+
+.action-hint {
+  color: #6f6759;
+  font-size: 12px;
+}
+
+.bank-chip {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.bank-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+.bank-chip.wild {
+  cursor: default;
+}
+
+#currentPlayerReservedCards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reserved-card {
+  min-height: 100px;
+}
+
+.buyReservedCardButton {
+  margin-top: 4px;
+  padding: 3px 7px;
+  font-size: 12px;
+}
+
+.deck-stack {
+  width: 92px;
+  min-height: 96px;
+  border-radius: 10px;
+  border: 1px solid #9c8f78;
+  background: #fffaf0;
+  cursor: pointer;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  font-weight: bold;
+  box-sizing: border-box;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.deck-stack:hover {
+  background: #efe2c8;
+  transform: translateY(-2px);
+}
+
+.deck-stack.is-selected-deck {
+  border: 2px solid #d6a640;
+  box-shadow: 0 0 0 3px rgba(214, 166, 64, 0.22);
+}
+
+.card.is-selected-card {
+  border: 2px solid #d6a640;
+  box-shadow: 0 0 0 3px rgba(214, 166, 64, 0.22);
+  transform: translateY(-2px);
+}
