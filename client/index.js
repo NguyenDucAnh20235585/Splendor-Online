@@ -1,3 +1,17 @@
+const socket = io("http://localhost:3000");
+
+const messageContainer = document.querySelector("#messageContainer");
+
+function displayMessage(message){
+  const div = document.createElement("div");
+  div.textContent = message;
+  messageContainer.appendChild(div);
+}
+
+socket.on("connect", () => {
+  displayMessage(`You connected with id: ${socket.id}`);
+});
+
 const TAKE_COLORS = ["Red", "Green", "Blue", "Black", "White"];
 const ALL_COLORS = ["Red", "Green", "Blue", "Black", "White", "Wild"];
 
@@ -1316,16 +1330,30 @@ function confirmTake(){
     return;
   }
 
-  applyTakeSelection();
+const takenChips = {};
 
-  setLog(`${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`);
-  endTurn();
+for (const c of TAKE_COLORS){
+  if (selected[c] > 0){
+    takenChips[c] = selected[c];
+  }
+}
+
+socket.emit("take-chips", {
+  playerIndex: state.currentPlayerIndex,
+  chips: takenChips
+});
+
+applyTakeSelection();
+
+setLog(`${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`);
+endTurn();
 }
 
 function clearSelection(){
   clearSelectionOnly();
   render();
 }
+
 
 function trySelectChip(color){
   if (state.gameOver) return;
