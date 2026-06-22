@@ -3,6 +3,22 @@ const socket = io("http://localhost:3000");
 const messageContainer = document.querySelector("#messageContainer");
 
 function displayMessage(message) {
+  const logEl = document.querySelector("#gameLog");
+
+  if (logEl) {
+    const div = document.createElement("div");
+    div.textContent = message;
+    div.className = "log-entry";
+
+    logEl.prepend(div);
+
+    while (logEl.children.length > 100) {
+      logEl.removeChild(logEl.lastChild);
+    }
+
+    return;
+  }
+
   const div = document.createElement("div");
   div.textContent = message;
   div.style.whiteSpace = "pre-line";
@@ -26,6 +42,7 @@ const lobbyInfoEl = document.querySelector("#lobbyInfo");
 let currentRoomId = null;
 let latestRoomState = null;
 let isCurrentUserHost = false;
+let myPlayerIndex = 0;
 
 joinRoomButton.addEventListener("click", () => {
   const roomId = roomInput.value.trim().toUpperCase();
@@ -51,6 +68,10 @@ socket.on("room-state", data => {
 
   const me = data.players.find(player => player.socketId === socket.id);
   isCurrentUserHost = !!me && me.isHost;
+
+  if (me) {
+    myPlayerIndex = me.playerIndex;
+  }
 
   const playerList = data.players
     .map(player => {
@@ -79,13 +100,16 @@ socket.on("game-started", data => {
   if (startRoomGameButton) {
     startRoomGameButton.disabled = true;
   }
+});
 
-  state.playerCount = data.playerCount;
-  state.gameMode = "multiplayer";
-  state.screen = "game";
+socket.on("game-state", gameState => {
+  console.log("GAME STATE FROM SERVER:", gameState);
+  console.log("Tier 1 cards:", gameState.marketBoard[1].map(card => card.id));
+  console.log("Nobles:", gameState.nobles.map(noble => noble.id));
 
-  resetGameForMode("multiplayer");
+  applyServerGameState(gameState);
   showGameScreen();
+  render();
 });
 
 startRoomGameButton.addEventListener("click", () => {
@@ -159,6 +183,44 @@ function showMultiplayerLobbyScreen() {
   document.querySelector("#gameScreen").style.display = "none";
 }
 
+function renderLogHistory() {
+  gameLogEl.innerHTML = logHistory
+    .map(item => `<div class="log-entry">${item}</div>`)
+    .join("");
+
+  gameLogEl.scrollTop = 0;
+}
+
+function applyServerGameState(gameState) {
+  logHistory = gameState.log || [];
+
+  state.players = gameState.players;
+  state.currentPlayerIndex = gameState.currentPlayerIndex;
+  state.playerCount = gameState.playerCount;
+  state.humanPlayerIndex = myPlayerIndex;
+  state.gameMode = "multiplayer";
+  state.bank = gameState.bank;
+  state.currentAction = gameState.currentAction || "take";
+  state.screen = "game";
+  state.selectedReserveIndex = null;
+  state.selectedBuyIndex = null;
+  state.selectedReservedCardIndex = null;
+  state.selectedDeckTier = null;
+  state.gameEnding = gameState.gameEnding || false;
+  state.endGameTriggeredBy = gameState.endGameTriggeredBy ?? null;
+  state.gameOver = gameState.gameOver || false;
+
+  marketDecks = gameState.marketDecks;
+  marketBoard = gameState.marketBoard;
+  nobles = gameState.nobles;
+
+  for (const color of TAKE_COLORS) {
+    selected[color] = 0;
+  }
+
+  renderLogHistory();
+}
+
 //support for bot
 function isBotTurn() {
   return isBotMode() && getCurrentPlayer().type === "bot";
@@ -178,6 +240,14 @@ function getCurrentPlayer() {
 
 function getPlayerDisplayName(index) {
   const player = state.players[index];
+
+  if (isMultiplayerMode()) {
+    if (index === state.humanPlayerIndex) {
+      return "You";
+    }
+
+    return player && player.name ? player.name : `Player ${index + 1}`;
+  }
 
   if (player.type === "human") {
     return "You";
@@ -1079,6 +1149,7 @@ backToSetupButton.addEventListener("click", () => {
   currentRoomId = null;
   latestRoomState = null;
   isCurrentUserHost = false;
+  myPlayerIndex = 0;
 
   if (lobbyInfoEl) {
     lobbyInfoEl.textContent = "Join a room to begin.";
@@ -1098,11 +1169,7 @@ function setLog(message) {
     logHistory.pop();
   }
 
-  gameLogEl.innerHTML = logHistory
-    .map(item => `<div class="log-entry">${item}</div>`)
-    .join("");
-
-  gameLogEl.scrollTop = 0;
+  renderLogHistory();
 }
 
 function debugSetNearEndGame() {
@@ -1211,7 +1278,12 @@ function render() {
   const playerTotalChip = totalChip(player.chips);
   const selectedTotalChip = totalChip(selected);
 
+  const isMyTurn =
+    !isMultiplayerMode() ||
+    state.currentPlayerIndex === state.humanPlayerIndex;
+
   confirmButton.disabled =
+    !isMyTurn ||
     (state.currentAction !== "take") ||
     (selectedTotalChip === 0) ||
     (playerTotalChip + selectedTotalChip > 10) ||
@@ -1231,11 +1303,11 @@ function render() {
     if (action === "add") {
       const noSpace = playerTotalChip >= 10;
       const remainingToSelect = state.bank[color] - selected[color];
-      btn.disabled = noSpace || (remainingToSelect <= 0);
+      btn.disabled = !isMyTurn || noSpace || (remainingToSelect <= 0);
     }
 
     if (action === "remove") {
-      btn.disabled = player.chips[color] <= 0;
+      btn.disabled = !isMyTurn || player.chips[color] <= 0;
     }
   });
 
@@ -1431,9 +1503,29 @@ function applyTakeSelection() {
 }
 
 function confirmTake() {
-
   if (state.gameOver) return;
   if (isBotTurn()) return;
+
+  if (isMultiplayerMode()) {
+    if (state.currentPlayerIndex !== state.humanPlayerIndex) {
+      setLog("It is not your turn.");
+      return;
+    }
+
+    const takenChips = {};
+
+    for (const color of TAKE_COLORS) {
+      if (selected[color] > 0) {
+        takenChips[color] = selected[color];
+      }
+    }
+
+    socket.emit("take-chips", {
+      chips: takenChips
+    });
+
+    return;
+  }
 
   const player = getCurrentPlayer();
   const playerTotalChip = totalChip(player.chips);
@@ -1444,26 +1536,13 @@ function confirmTake() {
   const nextPlayerName = getPlayerDisplayName(nextPlayerIndex);
 
   const takenParts = TAKE_COLORS
-    .filter(c => selected[c] > 0)
-    .map(c => `${c} x${selected[c]}`);
+    .filter(color => selected[color] > 0)
+    .map(color => `${color} x${selected[color]}`);
 
   if (playerTotalChip + selectedTotalChip > 10) {
     setLog(`Player ${state.currentPlayerIndex + 1} cannot take more than 10 chips.`);
     return;
   }
-
-  const takenChips = {};
-
-  for (const c of TAKE_COLORS) {
-    if (selected[c] > 0) {
-      takenChips[c] = selected[c];
-    }
-  }
-
-  socket.emit("take-chips", {
-    playerIndex: state.currentPlayerIndex,
-    chips: takenChips
-  });
 
   applyTakeSelection();
 
@@ -1476,12 +1555,16 @@ function clearSelection() {
   render();
 }
 
-
 function trySelectChip(color) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
   if (state.currentAction !== "take") return;
   if (!TAKE_COLORS.includes(color)) return;
+
+  if (isMultiplayerMode() && state.currentPlayerIndex !== state.humanPlayerIndex) {
+    setLog("It is not your turn.");
+    return;
+  }
 
   if ((state.bank[color] - selected[color]) <= 0) return;
 

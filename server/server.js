@@ -1,4 +1,6 @@
-const io = require("socket.io")(3000, {
+const PORT = process.env.PORT || 3000;
+
+const io = require("socket.io")(PORT, {
   cors: {
     origin: [
       "http://localhost:5500",
@@ -8,6 +10,960 @@ const io = require("socket.io")(3000, {
 });
 
 const rooms = {};
+
+
+const TAKE_COLORS = ["Red", "Green", "Blue", "Black", "White"];
+const ALL_COLORS = ["Red", "Green", "Blue", "Black", "White", "Wild"];
+const BONUS_COLORS = ["Red", "Green", "Blue", "Black", "White"];
+
+const ALL_MARKET_CARDS = [
+
+  //black
+  {
+    id: "black_1",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 1, Red: 1, Blue: 1, Green: 1 }
+  },
+  {
+    id: "black_2",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 1, Blue: 0, Green: 2 }
+  },
+  {
+    id: "black_3",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 2, Red: 0, Blue: 0, Green: 2 }
+  },
+  {
+    id: "black_4",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 1, White: 0, Red: 3, Blue: 0, Green: 1 }
+  },
+  {
+    id: "black_5",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 0, Green: 3 }
+  },
+  {
+    id: "black_6",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 1, Red: 1, Blue: 2, Green: 1 }
+  },
+  {
+    id: "black_7",
+    tier: 1,
+    color: "Black",
+    points: 0,
+    cost: { Black: 0, White: 2, Red: 1, Blue: 2, Green: 0 }
+  },
+  {
+    id: "black_8",
+    tier: 1,
+    color: "Black",
+    points: 1,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 4, Green: 0 }
+  },
+
+  {
+    id: "black_9",
+    tier: 2,
+    color: "Black",
+    points: 1,
+    cost: { Black: 0, White: 3, Red: 0, Blue: 2, Green: 2 }
+  },
+  {
+    id: "black_10",
+    tier: 2,
+    color: "Black",
+    points: 1,
+    cost: { Black: 2, White: 3, Red: 0, Blue: 0, Green: 3 }
+  },
+  {
+    id: "black_11",
+    tier: 2,
+    color: "Black",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 2, Blue: 1, Green: 4 }
+  },
+  {
+    id: "black_12",
+    tier: 2,
+    color: "Black",
+    points: 2,
+    cost: { Black: 0, White: 5, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "black_13",
+    tier: 2,
+    color: "Black",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 3, Blue: 0, Green: 5 }
+  },
+
+  {
+    id: "black_14",
+    tier: 2,
+    color: "Black",
+    points: 3,
+    cost: { Black: 6, White: 0, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "black_15",
+    tier: 3,
+    color: "Black",
+    points: 3,
+    cost: { Black: 0, White: 3, Red: 3, Blue: 3, Green: 5 }
+  },
+  {
+    id: "black_16",
+    tier: 3,
+    color: "Black",
+    points: 4,
+    cost: { Black: 0, White: 0, Red: 7, Blue: 0, Green: 0 }
+  },
+  {
+    id: "black_17",
+    tier: 3,
+    color: "Black",
+    points: 4,
+    cost: { Black: 3, White: 0, Red: 6, Blue: 0, Green: 3 }
+  },
+  {
+    id: "black_18",
+    tier: 3,
+    color: "Black",
+    points: 5,
+    cost: { Black: 3, White: 0, Red: 7, Blue: 0, Green: 0 }
+  },
+  //blue
+  {
+    id: "blue_1",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 2, White: 1, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "blue_2",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 1, White: 1, Red: 2, Blue: 0, Green: 1 }
+  },
+  {
+    id: "blue_3",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 1, White: 1, Red: 1, Blue: 0, Green: 1 }
+  },
+  {
+    id: "blue_4",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 1, Blue: 1, Green: 3 }
+  },
+  {
+    id: "blue_5",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 3, White: 0, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "blue_6",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 0, White: 1, Red: 2, Blue: 0, Green: 2 }
+  },
+  {
+    id: "blue_7",
+    tier: 1,
+    color: "Blue",
+    points: 0,
+    cost: { Black: 2, White: 0, Red: 0, Blue: 0, Green: 2 }
+  },
+  {
+    id: "blue_8",
+    tier: 1,
+    color: "Blue",
+    points: 1,
+    cost: { Black: 0, White: 0, Red: 4, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "blue_9",
+    tier: 2,
+    color: "Blue",
+    points: 1,
+    cost: { Black: 0, White: 0, Red: 3, Blue: 2, Green: 2 }
+  },
+  {
+    id: "blue_10",
+    tier: 2,
+    color: "Blue",
+    points: 1,
+    cost: { Black: 3, White: 0, Red: 0, Blue: 2, Green: 3 }
+  },
+  {
+    id: "blue_11",
+    tier: 2,
+    color: "Blue",
+    points: 2,
+    cost: { Black: 0, White: 5, Red: 0, Blue: 3, Green: 0 }
+  },
+  {
+    id: "blue_12",
+    tier: 2,
+    color: "Blue",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 5, Green: 0 }
+  },
+  {
+    id: "blue_13",
+    tier: 2,
+    color: "Blue",
+    points: 2,
+    cost: { Black: 4, White: 2, Red: 1, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "blue_14",
+    tier: 2,
+    color: "Blue",
+    points: 3,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 6, Green: 0 }
+  },
+  {
+    id: "blue_15",
+    tier: 3,
+    color: "Blue",
+    points: 3,
+    cost: { Black: 5, White: 3, Red: 3, Blue: 0, Green: 3 }
+  },
+  {
+    id: "blue_16",
+    tier: 3,
+    color: "Blue",
+    points: 4,
+    cost: { Black: 0, White: 7, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "blue_17",
+    tier: 3,
+    color: "Blue",
+    points: 4,
+    cost: { Black: 3, White: 6, Red: 0, Blue: 3, Green: 0 }
+  },
+  {
+    id: "blue_18",
+    tier: 3,
+    color: "Blue",
+    points: 5,
+    cost: { Black: 0, White: 7, Red: 0, Blue: 3, Green: 0 }
+  },
+  //green
+  {
+    id: "green_1",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 0, White: 2, Red: 0, Blue: 1, Green: 0 }
+  },
+  {
+    id: "green_2",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 2, Blue: 2, Green: 0 }
+  },
+  {
+    id: "green_3",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 0, White: 1, Red: 0, Blue: 3, Green: 1 }
+  },
+  {
+    id: "green_4",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 1, White: 1, Red: 1, Blue: 1, Green: 0 }
+  },
+  {
+    id: "green_5",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 2, White: 1, Red: 1, Blue: 1, Green: 0 }
+  },
+  {
+    id: "green_6",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 2, White: 0, Red: 2, Blue: 1, Green: 0 }
+  },
+  {
+    id: "green_7",
+    tier: 1,
+    color: "Green",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 3, Blue: 0, Green: 0 }
+  },
+  {
+    id: "green_8",
+    tier: 1,
+    color: "Green",
+    points: 1,
+    cost: { Black: 4, White: 0, Red: 0, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "green_9",
+    tier: 2,
+    color: "Green",
+    points: 1,
+    cost: { Black: 0, White: 3, Red: 3, Blue: 0, Green: 2 }
+  },
+  {
+    id: "green_10",
+    tier: 2,
+    color: "Green",
+    points: 1,
+    cost: { Black: 2, White: 2, Red: 0, Blue: 3, Green: 0 }
+  },
+  {
+    id: "green_11",
+    tier: 2,
+    color: "Green",
+    points: 2,
+    cost: { Black: 1, White: 4, Red: 0, Blue: 2, Green: 0 }
+  },
+  {
+    id: "green_12",
+    tier: 2,
+    color: "Green",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 0, Green: 5 }
+  },
+  {
+    id: "green_13",
+    tier: 2,
+    color: "Green",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 5, Green: 3 }
+  },
+  {
+    id: "green_14",
+    tier: 2,
+    color: "Green",
+    points: 3,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 0, Green: 6 }
+  },
+
+  {
+    id: "green_15",
+    tier: 3,
+    color: "Green",
+    points: 3,
+    cost: { Black: 3, White: 5, Red: 3, Blue: 3, Green: 0 }
+  },
+  {
+    id: "green_16",
+    tier: 3,
+    color: "Green",
+    points: 4,
+    cost: { Black: 0, White: 3, Red: 0, Blue: 6, Green: 3 }
+  },
+  {
+    id: "green_17",
+    tier: 3,
+    color: "Green",
+    points: 4,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 7, Green: 0 }
+  },
+  {
+    id: "green_18",
+    tier: 3,
+    color: "Green",
+    points: 5,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 7, Green: 3 }
+  },
+  //red
+  {
+    id: "red_1",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 0, White: 3, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_2",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 3, White: 1, Red: 1, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_3",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 2, Green: 1 }
+  },
+  {
+    id: "red_4",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 2, White: 2, Red: 0, Blue: 0, Green: 1 }
+  },
+  {
+    id: "red_5",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 1, White: 2, Red: 0, Blue: 1, Green: 1 }
+  },
+  {
+    id: "red_6",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 1, White: 1, Red: 0, Blue: 1, Green: 1 }
+  },
+  {
+    id: "red_7",
+    tier: 1,
+    color: "Red",
+    points: 0,
+    cost: { Black: 0, White: 2, Red: 2, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_8",
+    tier: 1,
+    color: "Red",
+    points: 1,
+    cost: { Black: 0, White: 4, Red: 0, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "red_9",
+    tier: 2,
+    color: "Red",
+    points: 1,
+    cost: { Black: 3, White: 0, Red: 2, Blue: 3, Green: 0 }
+  },
+  {
+    id: "red_10",
+    tier: 2,
+    color: "Red",
+    points: 1,
+    cost: { Black: 3, White: 2, Red: 2, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_11",
+    tier: 2,
+    color: "Red",
+    points: 2,
+    cost: { Black: 0, White: 1, Red: 0, Blue: 4, Green: 2 }
+  },
+  {
+    id: "red_12",
+    tier: 2,
+    color: "Red",
+    points: 2,
+    cost: { Black: 5, White: 3, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_13",
+    tier: 2,
+    color: "Red",
+    points: 2,
+    cost: { Black: 5, White: 0, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "red_14",
+    tier: 2,
+    color: "Red",
+    points: 3,
+    cost: { Black: 0, White: 0, Red: 6, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "red_15",
+    tier: 3,
+    color: "Red",
+    points: 3,
+    cost: { Black: 3, White: 3, Red: 0, Blue: 5, Green: 3 }
+  },
+  {
+    id: "red_16",
+    tier: 3,
+    color: "Red",
+    points: 4,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 0, Green: 7 }
+  },
+  {
+    id: "red_17",
+    tier: 3,
+    color: "Red",
+    points: 4,
+    cost: { Black: 0, White: 0, Red: 3, Blue: 3, Green: 6 }
+  },
+  {
+    id: "red_18",
+    tier: 3,
+    color: "Red",
+    points: 5,
+    cost: { Black: 0, White: 0, Red: 3, Blue: 0, Green: 7 }
+  },
+  //white
+  {
+    id: "white_1",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 1, White: 0, Red: 0, Blue: 2, Green: 2 }
+  },
+  {
+    id: "white_2",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 1, White: 0, Red: 2, Blue: 0, Green: 0 }
+  },
+  {
+    id: "white_3",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 1, White: 0, Red: 1, Blue: 1, Green: 1 }
+  },
+  {
+    id: "white_4",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 3, Green: 0 }
+  },
+  {
+    id: "white_5",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 2, Green: 2 }
+  },
+  {
+    id: "white_6",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 1, White: 0, Red: 1, Blue: 1, Green: 2 }
+  },
+  {
+    id: "white_7",
+    tier: 1,
+    color: "White",
+    points: 0,
+    cost: { Black: 1, White: 3, Red: 0, Blue: 1, Green: 0 }
+  },
+  {
+    id: "white_8",
+    tier: 1,
+    color: "White",
+    points: 1,
+    cost: { Black: 0, White: 0, Red: 0, Blue: 0, Green: 4 }
+  },
+
+  {
+    id: "white_9",
+    tier: 2,
+    color: "White",
+    points: 1,
+    cost: { Black: 2, White: 0, Red: 2, Blue: 0, Green: 3 }
+  },
+  {
+    id: "white_10",
+    tier: 2,
+    color: "White",
+    points: 1,
+    cost: { Black: 0, White: 2, Red: 3, Blue: 3, Green: 0 }
+  },
+  {
+    id: "white_11",
+    tier: 2,
+    color: "White",
+    points: 2,
+    cost: { Black: 2, White: 0, Red: 4, Blue: 0, Green: 1 }
+  },
+  {
+    id: "white_12",
+    tier: 2,
+    color: "White",
+    points: 2,
+    cost: { Black: 0, White: 0, Red: 5, Blue: 0, Green: 0 }
+  },
+  {
+    id: "white_13",
+    tier: 2,
+    color: "White",
+    points: 2,
+    cost: { Black: 3, White: 0, Red: 5, Blue: 0, Green: 0 }
+  },
+  {
+    id: "white_14",
+    tier: 2,
+    color: "White",
+    points: 3,
+    cost: { Black: 0, White: 6, Red: 0, Blue: 0, Green: 0 }
+  },
+
+  {
+    id: "white_15",
+    tier: 3,
+    color: "White",
+    points: 3,
+    cost: { Black: 3, White: 0, Red: 5, Blue: 3, Green: 3 }
+  },
+  {
+    id: "white_16",
+    tier: 3,
+    color: "White",
+    points: 4,
+    cost: { Black: 7, White: 0, Red: 0, Blue: 0, Green: 0 }
+  },
+  {
+    id: "white_17",
+    tier: 3,
+    color: "White",
+    points: 4,
+    cost: { Black: 6, White: 3, Red: 3, Blue: 0, Green: 0 }
+  },
+  {
+    id: "white_18",
+    tier: 3,
+    color: "White",
+    points: 5,
+    cost: { Black: 7, White: 3, Red: 0, Blue: 0, Green: 0 }
+  }
+];
+
+const ALL_NOBLES = [
+  {
+    id: "noble_1",
+    points: 3,
+    requiredBonuses: {
+      White: 3,
+      Blue: 3,
+      Black: 0,
+      Red: 0,
+      Green: 3
+    }
+  },
+  {
+    id: "noble_2",
+    points: 3,
+    requiredBonuses: {
+      White: 0,
+      Blue: 3,
+      Black: 0,
+      Red: 3,
+      Green: 3
+    }
+  },
+  {
+    id: "noble_3",
+    points: 3,
+    requiredBonuses: {
+      White: 3,
+      Blue: 0,
+      Black: 3,
+      Red: 3,
+      Green: 0
+    }
+  },
+  {
+    id: "noble_4",
+    points: 3,
+    requiredBonuses: {
+      White: 3,
+      Blue: 3,
+      Black: 3,
+      Red: 0,
+      Green: 0
+    }
+  },
+  {
+    id: "noble_5",
+    points: 3,
+    requiredBonuses: {
+      White: 0,
+      Blue: 0,
+      Black: 3,
+      Red: 3,
+      Green: 3
+    }
+  },
+  {
+    id: "noble_6",
+    points: 3,
+    requiredBonuses: {
+      White: 0,
+      Blue: 0,
+      Black: 4,
+      Red: 4,
+      Green: 0
+    }
+  },
+  {
+    id: "noble_7",
+    points: 3,
+    requiredBonuses: {
+      White: 4,
+      Blue: 0,
+      Black: 4,
+      Red: 0,
+      Green: 0
+    }
+  },
+  {
+    id: "noble_8",
+    points: 3,
+    requiredBonuses: {
+      White: 0,
+      Blue: 0,
+      Black: 0,
+      Red: 4,
+      Green: 4
+    }
+  },
+  {
+    id: "noble_9",
+    points: 3,
+    requiredBonuses: {
+      White: 4,
+      Blue: 4,
+      Black: 0,
+      Red: 0,
+      Green: 0
+    }
+  },
+  {
+    id: "noble_10",
+    points: 3,
+    requiredBonuses: {
+      White: 0,
+      Blue: 4,
+      Black: 0,
+      Red: 0,
+      Green: 4
+    }
+  }
+];
+
+function createEmptyColorMap(colors, value = 0) {
+  return Object.fromEntries(colors.map(color => [color, value]));
+}
+
+function createGamePlayer(roomPlayer) {
+  return {
+    socketId: roomPlayer.socketId,
+    name: roomPlayer.name,
+    playerIndex: roomPlayer.playerIndex,
+    type: "human",
+    chips: createEmptyColorMap(ALL_COLORS, 0),
+    victoryPoints: 0,
+    bonusChip: createEmptyColorMap(BONUS_COLORS, 0),
+    ownedCards: [],
+    reservedCards: [],
+    nobles: []
+  };
+}
+
+function createBank(playerCount) {
+  let colorChipCount = 7;
+
+  if (playerCount === 2) colorChipCount = 4;
+  else if (playerCount === 3) colorChipCount = 5;
+  else if (playerCount === 4) colorChipCount = 7;
+
+  return {
+    Red: colorChipCount,
+    Green: colorChipCount,
+    Blue: colorChipCount,
+    Black: colorChipCount,
+    White: colorChipCount,
+    Wild: 5
+  };
+}
+
+function getNobleCount(playerCount) {
+  return playerCount + 1;
+}
+
+function shuffleArray(array) {
+  const copy = [...array];
+
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+
+  return copy;
+}
+
+function buildShuffledMarketDecks() {
+  return {
+    1: shuffleArray(ALL_MARKET_CARDS.filter(card => card.tier === 1)),
+    2: shuffleArray(ALL_MARKET_CARDS.filter(card => card.tier === 2)),
+    3: shuffleArray(ALL_MARKET_CARDS.filter(card => card.tier === 3))
+  };
+}
+
+function buildInitialMarketBoard(marketDecks) {
+  const marketBoard = {
+    1: [],
+    2: [],
+    3: []
+  };
+
+  for (let i = 0; i < 4; i++) {
+    for (const tier of [1, 2, 3]) {
+      const card = marketDecks[tier].shift() || null;
+      if (card) marketBoard[tier].push(card);
+    }
+  }
+
+  return marketBoard;
+}
+
+function createInitialGameState(roomPlayers) {
+  const playerCount = roomPlayers.length;
+  const marketDecks = buildShuffledMarketDecks();
+  const marketBoard = buildInitialMarketBoard(marketDecks);
+  const nobles = shuffleArray(ALL_NOBLES).slice(0, getNobleCount(playerCount));
+
+  return {
+    playerCount,
+    players: roomPlayers.map(createGamePlayer),
+    currentPlayerIndex: 0,
+    bank: createBank(playerCount),
+    marketDecks,
+    marketBoard,
+    nobles,
+    currentAction: "take",
+    gameEnding: false,
+    endGameTriggeredBy: null,
+    gameOver: false,
+    log: ["Game started in Multiplayer mode. Player 1's turn."]
+  };
+}
+
+function totalChip(obj) {
+  return Object.values(obj).reduce((sum, value) => sum + value, 0);
+}
+
+function isValidTakeSelectionForServer(gameState, chips) {
+  if (!chips || typeof chips !== "object") return false;
+
+  const selected = {};
+  for (const color of TAKE_COLORS) {
+    selected[color] = Number(chips[color] || 0);
+
+    if (!Number.isInteger(selected[color])) return false;
+    if (selected[color] < 0) return false;
+    if (selected[color] > 2) return false;
+    if (selected[color] > gameState.bank[color]) return false;
+  }
+
+  const totalSel = totalChip(selected);
+  if (totalSel === 0) return false;
+
+  const pickedColors = TAKE_COLORS.filter(color => selected[color] > 0);
+  const distinct = pickedColors.length;
+  const maxPerColor = Math.max(...TAKE_COLORS.map(color => selected[color]));
+
+  const threeChipDistinct =
+    totalSel <= 3 &&
+    maxPerColor === 1;
+
+  const twoSame =
+    totalSel === 2 &&
+    distinct === 1 &&
+    gameState.bank[pickedColors[0]] >= 4;
+
+  return threeChipDistinct || twoSame;
+}
+
+function getPlayerBySocketId(gameState, socketId) {
+  return gameState.players.find(player => player.socketId === socketId);
+}
+
+function applyTakeChipsOnServer(gameState, playerIndex, chips) {
+  const player = gameState.players[playerIndex];
+
+  const selected = {};
+  for (const color of TAKE_COLORS) {
+    selected[color] = Number(chips[color] || 0);
+  }
+
+  if (totalChip(player.chips) + totalChip(selected) > 10) {
+    return {
+      ok: false,
+      message: "You cannot have more than 10 chips."
+    };
+  }
+
+  for (const color of TAKE_COLORS) {
+    const amount = selected[color];
+    if (amount <= 0) continue;
+
+    gameState.bank[color] -= amount;
+    player.chips[color] += amount;
+  }
+
+  const takenParts = TAKE_COLORS
+    .filter(color => selected[color] > 0)
+    .map(color => `${color} x${selected[color]}`);
+
+  const currentPlayerName = player.name || `Player ${playerIndex + 1}`;
+
+  const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+  const nextPlayer = gameState.players[nextPlayerIndex];
+  const nextPlayerName = nextPlayer.name || `Player ${nextPlayerIndex + 1}`;
+
+  gameState.currentPlayerIndex = nextPlayerIndex;
+  gameState.currentAction = "take";
+
+  gameState.log.unshift(
+    `${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`
+  );
+
+  if (gameState.log.length > 100) {
+    gameState.log.pop();
+  }
+
+  return {
+    ok: true
+  };
+}
 
 function normalizeRoomId(roomId) {
   return String(roomId || "").trim().toUpperCase();
@@ -206,6 +1162,65 @@ io.on("connection", socket => {
       return;
     }
 
+    socket.on("take-chips", data => {
+      const roomId = socket.data.roomId;
+      if (!roomId || !rooms[roomId]) return;
+
+      const room = rooms[roomId];
+      const gameState = room.gameState;
+
+      if (room.status !== "playing" || !gameState) {
+        socket.emit("room-message", {
+          roomId,
+          message: "Game has not started yet."
+        });
+        return;
+      }
+
+      const player = getPlayerBySocketId(gameState, socket.id);
+
+      if (!player) {
+        socket.emit("room-message", {
+          roomId,
+          message: "You are not a player in this game."
+        });
+        return;
+      }
+
+      if (player.playerIndex !== gameState.currentPlayerIndex) {
+        socket.emit("room-message", {
+          roomId,
+          message: "It is not your turn."
+        });
+        return;
+      }
+
+      if (!isValidTakeSelectionForServer(gameState, data.chips)) {
+        socket.emit("room-message", {
+          roomId,
+          message: "Invalid chip selection."
+        });
+        return;
+      }
+
+      const result = applyTakeChipsOnServer(
+        gameState,
+        player.playerIndex,
+        data.chips
+      );
+
+      if (!result.ok) {
+        socket.emit("room-message", {
+          roomId,
+          message: result.message
+        });
+        return;
+      }
+
+      io.to(roomId).emit("game-state", gameState);
+    });
+
+    room.gameState = createInitialGameState(room.players);
     room.status = "playing";
 
     io.to(roomId).emit("game-started", {
@@ -213,6 +1228,8 @@ io.on("connection", socket => {
       players: room.players,
       playerCount: room.players.length
     });
+
+    io.to(roomId).emit("game-state", room.gameState);
 
     sendRoomState(roomId);
 
@@ -242,3 +1259,5 @@ io.on("connection", socket => {
     console.log("Disconnected:", socket.id);
   });
 });
+
+console.log(`Socket.IO server running on port ${PORT}`);

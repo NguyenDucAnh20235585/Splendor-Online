@@ -9,12 +9,31 @@ body {
 /* =========================
    Color system
 ========================= */
-.red { background: #c94a4a; }
-.green { background: #4f9d69; }
-.blue { background: #4a78c9; }
-.black { background: black; }
-.white { background: azure; color: black; }
-.wild { background: gold; color: black; }
+.red {
+  background: #c94a4a;
+}
+
+.green {
+  background: #4f9d69;
+}
+
+.blue {
+  background: #4a78c9;
+}
+
+.black {
+  background: black;
+}
+
+.white {
+  background: azure;
+  color: black;
+}
+
+.wild {
+  background: gold;
+  color: black;
+}
 
 /* =========================
    Layout
@@ -27,7 +46,9 @@ body {
   align-items: start;
 }
 
-#leftSection { grid-area: left; }
+#leftSection {
+  grid-area: left;
+}
 
 #middleSection {
   grid-area: middle;
