@@ -11,7 +11,6 @@ const io = require("socket.io")(PORT, {
 
 const rooms = {};
 
-
 const TAKE_COLORS = ["Red", "Green", "Blue", "Black", "White"];
 const ALL_COLORS = ["Red", "Green", "Blue", "Black", "White", "Wild"];
 const BONUS_COLORS = ["Red", "Green", "Blue", "Black", "White"];
@@ -838,11 +837,7 @@ function buildShuffledMarketDecks() {
 }
 
 function buildInitialMarketBoard(marketDecks) {
-  const marketBoard = {
-    1: [],
-    2: [],
-    3: []
-  };
+  const marketBoard = { 1: [], 2: [], 3: [] };
 
   for (let i = 0; i < 4; i++) {
     for (const tier of [1, 2, 3]) {
@@ -880,6 +875,10 @@ function totalChip(obj) {
   return Object.values(obj).reduce((sum, value) => sum + value, 0);
 }
 
+function getPlayerBySocketId(gameState, socketId) {
+  return gameState.players.find(player => player.socketId === socketId);
+}
+
 function isValidTakeSelectionForServer(gameState, chips) {
   if (!chips || typeof chips !== "object") return false;
 
@@ -900,9 +899,7 @@ function isValidTakeSelectionForServer(gameState, chips) {
   const distinct = pickedColors.length;
   const maxPerColor = Math.max(...TAKE_COLORS.map(color => selected[color]));
 
-  const threeChipDistinct =
-    totalSel <= 3 &&
-    maxPerColor === 1;
+  const threeChipDistinct = totalSel <= 3 && maxPerColor === 1;
 
   const twoSame =
     totalSel === 2 &&
@@ -910,10 +907,6 @@ function isValidTakeSelectionForServer(gameState, chips) {
     gameState.bank[pickedColors[0]] >= 4;
 
   return threeChipDistinct || twoSame;
-}
-
-function getPlayerBySocketId(gameState, socketId) {
-  return gameState.players.find(player => player.socketId === socketId);
 }
 
 function applyTakeChipsOnServer(gameState, playerIndex, chips) {
@@ -925,10 +918,7 @@ function applyTakeChipsOnServer(gameState, playerIndex, chips) {
   }
 
   if (totalChip(player.chips) + totalChip(selected) > 10) {
-    return {
-      ok: false,
-      message: "You cannot have more than 10 chips."
-    };
+    return { ok: false, message: "You cannot have more than 10 chips." };
   }
 
   for (const color of TAKE_COLORS) {
@@ -944,25 +934,92 @@ function applyTakeChipsOnServer(gameState, playerIndex, chips) {
     .map(color => `${color} x${selected[color]}`);
 
   const currentPlayerName = player.name || `Player ${playerIndex + 1}`;
-
   const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
   const nextPlayer = gameState.players[nextPlayerIndex];
   const nextPlayerName = nextPlayer.name || `Player ${nextPlayerIndex + 1}`;
-
-  gameState.currentPlayerIndex = nextPlayerIndex;
-  gameState.currentAction = "take";
 
   gameState.log.unshift(
     `${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`
   );
 
-  if (gameState.log.length > 100) {
-    gameState.log.pop();
+  advanceTurnOnServer(gameState);
+  trimLog(gameState);
+
+  return { ok: true };
+}
+
+function canAffordCardOnServer(player, card) {
+  let wildNeeded = 0;
+
+  for (const color of BONUS_COLORS) {
+    const cost = card.cost[color] || 0;
+    const bonus = player.bonusChip[color] || 0;
+    const chips = player.chips[color] || 0;
+
+    const discountedCost = Math.max(0, cost - bonus);
+    const missing = Math.max(0, discountedCost - chips);
+
+    wildNeeded += missing;
   }
 
-  return {
-    ok: true
-  };
+  return wildNeeded <= player.chips.Wild;
+}
+
+function payForCardOnServer(gameState, player, card) {
+  for (const color of BONUS_COLORS) {
+    const cost = card.cost[color] || 0;
+    const bonus = player.bonusChip[color] || 0;
+
+    const discountedCost = Math.max(0, cost - bonus);
+    const useNormalChips = Math.min(player.chips[color], discountedCost);
+
+    player.chips[color] -= useNormalChips;
+    gameState.bank[color] += useNormalChips;
+
+    const stillMissing = discountedCost - useNormalChips;
+
+    if (stillMissing > 0) {
+      player.chips.Wild -= stillMissing;
+      gameState.bank.Wild += stillMissing;
+    }
+  }
+}
+
+function applyCardRewardOnServer(player, card) {
+  player.victoryPoints += card.points;
+  player.bonusChip[card.color] += 1;
+}
+
+function canClaimNobleOnServer(player, noble) {
+  return BONUS_COLORS.every(color => {
+    return (player.bonusChip[color] || 0) >= (noble.requiredBonuses[color] || 0);
+  });
+}
+
+function claimAvailableNobleOnServer(gameState, player) {
+  const nobleIndex = gameState.nobles.findIndex(noble => canClaimNobleOnServer(player, noble));
+  if (nobleIndex === -1) return null;
+
+  const noble = gameState.nobles[nobleIndex];
+  gameState.nobles.splice(nobleIndex, 1);
+
+  player.nobles.push(noble);
+  player.victoryPoints += noble.points;
+
+  return noble;
+}
+
+function advanceTurnOnServer(gameState) {
+  gameState.currentPlayerIndex =
+    (gameState.currentPlayerIndex + 1) % gameState.players.length;
+
+  gameState.currentAction = "take";
+}
+
+function trimLog(gameState) {
+  if (gameState.log.length > 100) {
+    gameState.log = gameState.log.slice(0, 100);
+  }
 }
 
 function normalizeRoomId(roomId) {
@@ -1018,10 +1075,7 @@ function removeSocketFromRoom(socket, roomId) {
   const room = rooms[roomId];
   if (!room) return;
 
-  room.players = room.players.filter(player => {
-    return player.socketId !== socket.id;
-  });
-
+  room.players = room.players.filter(player => player.socketId !== socket.id);
   socket.leave(roomId);
 
   if (room.players.length === 0) {
@@ -1072,22 +1126,14 @@ io.on("connection", socket => {
     const room = rooms[roomId];
 
     if (room.status === "playing") {
-      socket.emit("room-message", {
-        roomId,
-        message: `Room ${roomId} is already playing.`
-      });
+      socket.emit("room-message", { roomId, message: `Room ${roomId} is already playing.` });
       return;
     }
 
-    const alreadyInRoom = room.players.some(player => {
-      return player.socketId === socket.id;
-    });
+    const alreadyInRoom = room.players.some(player => player.socketId === socket.id);
 
     if (!alreadyInRoom && room.players.length >= room.maxPlayers) {
-      socket.emit("room-message", {
-        roomId,
-        message: `Room ${roomId} is full.`
-      });
+      socket.emit("room-message", { roomId, message: `Room ${roomId} is full.` });
       sendRoomState(roomId);
       return;
     }
@@ -1111,15 +1157,8 @@ io.on("connection", socket => {
 
     console.log(`${socket.id} joined room ${roomId}`);
 
-    socket.emit("room-message", {
-      roomId,
-      message: `You joined room ${roomId}`
-    });
-
-    socket.to(roomId).emit("room-message", {
-      roomId,
-      message: `A new player joined room ${roomId}`
-    });
+    socket.emit("room-message", { roomId, message: `You joined room ${roomId}` });
+    socket.to(roomId).emit("room-message", { roomId, message: `A new player joined room ${roomId}` });
 
     sendRoomState(roomId);
   });
@@ -1131,94 +1170,24 @@ io.on("connection", socket => {
     const room = rooms[roomId];
 
     if (room.status === "playing") {
-      socket.emit("room-message", {
-        roomId,
-        message: "Game already started."
-      });
+      socket.emit("room-message", { roomId, message: "Game already started." });
       return;
     }
 
     if (socket.id !== room.hostSocketId) {
-      socket.emit("room-message", {
-        roomId,
-        message: "Only the host can start the game."
-      });
+      socket.emit("room-message", { roomId, message: "Only the host can start the game." });
       return;
     }
 
     if (room.players.length < room.minPlayersToStart) {
-      socket.emit("room-message", {
-        roomId,
-        message: `Need at least ${room.minPlayersToStart} players to start.`
-      });
+      socket.emit("room-message", { roomId, message: `Need at least ${room.minPlayersToStart} players to start.` });
       return;
     }
 
     if (room.players.length > room.maxPlayers) {
-      socket.emit("room-message", {
-        roomId,
-        message: "Too many players in this room."
-      });
+      socket.emit("room-message", { roomId, message: "Too many players in this room." });
       return;
     }
-
-    socket.on("take-chips", data => {
-      const roomId = socket.data.roomId;
-      if (!roomId || !rooms[roomId]) return;
-
-      const room = rooms[roomId];
-      const gameState = room.gameState;
-
-      if (room.status !== "playing" || !gameState) {
-        socket.emit("room-message", {
-          roomId,
-          message: "Game has not started yet."
-        });
-        return;
-      }
-
-      const player = getPlayerBySocketId(gameState, socket.id);
-
-      if (!player) {
-        socket.emit("room-message", {
-          roomId,
-          message: "You are not a player in this game."
-        });
-        return;
-      }
-
-      if (player.playerIndex !== gameState.currentPlayerIndex) {
-        socket.emit("room-message", {
-          roomId,
-          message: "It is not your turn."
-        });
-        return;
-      }
-
-      if (!isValidTakeSelectionForServer(gameState, data.chips)) {
-        socket.emit("room-message", {
-          roomId,
-          message: "Invalid chip selection."
-        });
-        return;
-      }
-
-      const result = applyTakeChipsOnServer(
-        gameState,
-        player.playerIndex,
-        data.chips
-      );
-
-      if (!result.ok) {
-        socket.emit("room-message", {
-          roomId,
-          message: result.message
-        });
-        return;
-      }
-
-      io.to(roomId).emit("game-state", gameState);
-    });
 
     room.gameState = createInitialGameState(room.players);
     room.status = "playing";
@@ -1230,10 +1199,50 @@ io.on("connection", socket => {
     });
 
     io.to(roomId).emit("game-state", room.gameState);
-
     sendRoomState(roomId);
 
     console.log(`Game started in room ${roomId}`);
+  });
+
+  socket.on("take-chips", data => {
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    const gameState = room.gameState;
+
+    if (room.status !== "playing" || !gameState) {
+      socket.emit("room-message", { roomId, message: "Game has not started yet." });
+      return;
+    }
+
+    if (gameState.gameOver) return;
+
+    const player = getPlayerBySocketId(gameState, socket.id);
+
+    if (!player) {
+      socket.emit("room-message", { roomId, message: "You are not a player in this game." });
+      return;
+    }
+
+    if (player.playerIndex !== gameState.currentPlayerIndex) {
+      socket.emit("room-message", { roomId, message: "It is not your turn." });
+      return;
+    }
+
+    if (!isValidTakeSelectionForServer(gameState, data?.chips)) {
+      socket.emit("room-message", { roomId, message: "Invalid chip selection." });
+      return;
+    }
+
+    const result = applyTakeChipsOnServer(gameState, player.playerIndex, data.chips);
+
+    if (!result.ok) {
+      socket.emit("room-message", { roomId, message: result.message });
+      return;
+    }
+
+    io.to(roomId).emit("game-state", gameState);
   });
 
   socket.on("reserve-card", data => {
@@ -1244,81 +1253,58 @@ io.on("connection", socket => {
     const gameState = room.gameState;
 
     if (room.status !== "playing" || !gameState) {
-      socket.emit("room-message", {
-        roomId,
-        message: "Game has not started yet."
-      });
+      socket.emit("room-message", { roomId, message: "Game has not started yet." });
       return;
     }
 
     const player = getPlayerBySocketId(gameState, socket.id);
 
     if (!player) {
-      socket.emit("room-message", {
-        roomId,
-        message: "You are not a player in this game."
-      });
+      socket.emit("room-message", { roomId, message: "You are not a player in this game." });
       return;
     }
 
     if (player.playerIndex !== gameState.currentPlayerIndex) {
-      socket.emit("room-message", {
-        roomId,
-        message: "It is not your turn."
-      });
+      socket.emit("room-message", { roomId, message: "It is not your turn." });
       return;
     }
 
     if (player.reservedCards.length >= 3) {
-      socket.emit("room-message", {
-        roomId,
-        message: "You cannot reserve more than 3 cards."
-      });
+      socket.emit("room-message", { roomId, message: "You cannot reserve more than 3 cards." });
       return;
     }
 
-    const tier = Number(data.tier);
+    const tier = Number(data?.tier);
 
     if (![1, 2, 3].includes(tier)) {
-      socket.emit("room-message", {
-        roomId,
-        message: "Invalid card tier."
-      });
+      socket.emit("room-message", { roomId, message: "Invalid card tier." });
       return;
     }
 
     let card = null;
     let reservedFromDeck = false;
 
-    if (data.fromDeck) {
+    if (data?.fromDeck) {
       card = gameState.marketDecks[tier].shift() || null;
       reservedFromDeck = true;
 
       if (!card) {
-        socket.emit("room-message", {
-          roomId,
-          message: `No cards left in Tier ${tier} deck.`
-        });
+        socket.emit("room-message", { roomId, message: `No cards left in Tier ${tier} deck.` });
         return;
       }
     } else {
-      const cardId = String(data.cardId || "");
+      const cardId = String(data?.cardId || "");
       const cardIndex = gameState.marketBoard[tier].findIndex(card => card.id === cardId);
 
       if (cardIndex === -1) {
-        socket.emit("room-message", {
-          roomId,
-          message: "Selected card was not found."
-        });
+        socket.emit("room-message", { roomId, message: "Selected card was not found." });
         return;
       }
 
       card = gameState.marketBoard[tier].splice(cardIndex, 1)[0];
 
       const replacement = gameState.marketDecks[tier].shift() || null;
-      if (replacement) {
-        gameState.marketBoard[tier].push(replacement);
-      }
+      if (replacement) gameState.marketBoard[tier].push(replacement);
     }
 
     player.reservedCards.push(card);
@@ -1329,27 +1315,117 @@ io.on("connection", socket => {
     }
 
     const currentPlayerName = player.name || `Player ${player.playerIndex + 1}`;
-
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
     const nextPlayer = gameState.players[nextPlayerIndex];
     const nextPlayerName = nextPlayer.name || `Player ${nextPlayerIndex + 1}`;
 
-    gameState.currentPlayerIndex = nextPlayerIndex;
-    gameState.currentAction = "take";
-
     if (reservedFromDeck) {
+      gameState.log.unshift(`${currentPlayerName} reserved a face-down Tier ${tier} card. ${nextPlayerName}'s turn.`);
+    } else {
+      gameState.log.unshift(`${currentPlayerName} reserved a ${card.color} level ${card.tier} card. ${nextPlayerName}'s turn.`);
+    }
+
+    advanceTurnOnServer(gameState);
+    trimLog(gameState);
+
+    io.to(roomId).emit("game-state", gameState);
+  });
+
+  socket.on("buy-card", data => {
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    const gameState = room.gameState;
+
+    if (room.status !== "playing" || !gameState) {
+      socket.emit("room-message", { roomId, message: "Game has not started yet." });
+      return;
+    }
+
+    const player = getPlayerBySocketId(gameState, socket.id);
+
+    if (!player) {
+      socket.emit("room-message", { roomId, message: "You are not a player in this game." });
+      return;
+    }
+
+    if (player.playerIndex !== gameState.currentPlayerIndex) {
+      socket.emit("room-message", { roomId, message: "It is not your turn." });
+      return;
+    }
+
+    let card = null;
+    let sourceText = "";
+
+    if (data?.fromReserved) {
+      const reservedIndex = Number(data.reservedIndex);
+
+      if (!Number.isInteger(reservedIndex) || reservedIndex < 0 || reservedIndex >= player.reservedCards.length) {
+        socket.emit("room-message", { roomId, message: "Invalid reserved card." });
+        return;
+      }
+
+      card = player.reservedCards[reservedIndex];
+
+      if (!canAffordCardOnServer(player, card)) {
+        socket.emit("room-message", { roomId, message: "You do not have enough chips to buy this reserved card." });
+        return;
+      }
+
+      player.reservedCards.splice(reservedIndex, 1);
+      sourceText = "reserved ";
+    } else {
+      const tier = Number(data?.tier);
+
+      if (![1, 2, 3].includes(tier)) {
+        socket.emit("room-message", { roomId, message: "Invalid card tier." });
+        return;
+      }
+
+      const cardId = String(data?.cardId || "");
+      const cardIndex = gameState.marketBoard[tier].findIndex(card => card.id === cardId);
+
+      if (cardIndex === -1) {
+        socket.emit("room-message", { roomId, message: "Selected card was not found." });
+        return;
+      }
+
+      card = gameState.marketBoard[tier][cardIndex];
+
+      if (!canAffordCardOnServer(player, card)) {
+        socket.emit("room-message", { roomId, message: "You do not have enough chips to buy this card." });
+        return;
+      }
+
+      gameState.marketBoard[tier].splice(cardIndex, 1);
+
+      const replacement = gameState.marketDecks[tier].shift() || null;
+      if (replacement) gameState.marketBoard[tier].push(replacement);
+    }
+
+    payForCardOnServer(gameState, player, card);
+    applyCardRewardOnServer(player, card);
+    player.ownedCards.push(card);
+
+    const claimedNoble = claimAvailableNobleOnServer(gameState, player);
+    const currentPlayerName = player.name || `Player ${player.playerIndex + 1}`;
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+    const nextPlayerName = nextPlayer.name || `Player ${nextPlayerIndex + 1}`;
+
+    if (claimedNoble) {
       gameState.log.unshift(
-        `${currentPlayerName} reserved a face-down Tier ${tier} card. ${nextPlayerName}'s turn.`
+        `${currentPlayerName} bought a ${sourceText}${card.color} card (${card.points} VP), claimed ${claimedNoble.id}. ${nextPlayerName}'s turn.`
       );
     } else {
       gameState.log.unshift(
-        `${currentPlayerName} reserved a ${card.color} level ${card.tier} card. ${nextPlayerName}'s turn.`
+        `${currentPlayerName} bought a ${sourceText}${card.color} card (${card.points} VP). ${nextPlayerName}'s turn.`
       );
     }
 
-    if (gameState.log.length > 100) {
-      gameState.log.pop();
-    }
+    advanceTurnOnServer(gameState);
+    trimLog(gameState);
 
     io.to(roomId).emit("game-state", gameState);
   });
@@ -1358,7 +1434,6 @@ io.on("connection", socket => {
     if (!data || !data.roomId) return;
 
     const roomId = normalizeRoomId(data.roomId);
-
     if (!rooms[roomId]) return;
 
     io.to(roomId).emit("room-message", {
@@ -1369,11 +1444,9 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     const roomId = socket.data.roomId;
-
     if (!roomId) return;
 
     removeSocketFromRoom(socket, roomId);
-
     console.log("Disconnected:", socket.id);
   });
 });

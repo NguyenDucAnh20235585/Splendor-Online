@@ -197,6 +197,14 @@ function applyServerGameState(gameState) {
   state.players = gameState.players;
   state.currentPlayerIndex = gameState.currentPlayerIndex;
   state.playerCount = gameState.playerCount;
+  const serverPlayerIndex = gameState.players.findIndex(player => {
+    return player.socketId === socket.id;
+  });
+
+  if (serverPlayerIndex !== -1) {
+    myPlayerIndex = serverPlayerIndex;
+  }
+
   state.humanPlayerIndex = myPlayerIndex;
   state.gameMode = "multiplayer";
   state.bank = gameState.bank;
@@ -1858,6 +1866,21 @@ function buyMarketCardById(cardId, tier) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
+  if (isMultiplayerMode()) {
+    if (state.currentPlayerIndex !== state.humanPlayerIndex) {
+      setLog("It is not your turn.");
+      return;
+    }
+
+    socket.emit("buy-card", {
+      fromReserved: false,
+      cardId,
+      tier
+    });
+
+    return;
+  }
+
   const card = marketBoard[tier].find(card => card.id === cardId);
   if (!card) return;
 
@@ -1946,6 +1969,20 @@ function buyReservedCardByIndex(index) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
+  if (isMultiplayerMode()) {
+    if (state.currentPlayerIndex !== state.humanPlayerIndex) {
+      setLog("It is not your turn.");
+      return;
+    }
+
+    socket.emit("buy-card", {
+      fromReserved: true,
+      reservedIndex: index
+    });
+
+    return;
+  }
+
   const player = getCurrentPlayer();
   const card = player.reservedCards[index];
 
@@ -1998,6 +2035,11 @@ reservedCardsEl.addEventListener("click", (e) => {
 buyModeButton.addEventListener("click", () => {
   if (state.gameOver) return;
   if (isBotTurn()) return;
+
+  if (isMultiplayerMode() && state.currentPlayerIndex !== state.humanPlayerIndex) {
+    setLog("It is not your turn.");
+    return;
+  }
 
   if (state.currentAction === "buy" && state.selectedBuyIndex !== null) {
     const { cardId, tier } = state.selectedBuyIndex;
