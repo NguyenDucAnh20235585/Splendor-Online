@@ -1,4 +1,12 @@
-const socket = io("http://localhost:3000");
+const socket = typeof io === "function"
+  ? io("http://localhost:3000")
+  : {
+    id: null,
+    on: () => { },
+    emit: () => {
+      console.warn("Socket.IO server is not running.");
+    }
+  };
 
 const messageContainer = document.querySelector("#messageContainer");
 
@@ -27,6 +35,7 @@ function displayMessage(message) {
 
 socket.on("connect", () => {
   displayMessage(`You connected with id: ${socket.id}`);
+  socket.emit("list-rooms");
 });
 
 socket.on("receive-command", data => {
@@ -38,26 +47,38 @@ const joinRoomButton = document.querySelector("#joinRoomButton");
 const startRoomGameButton = document.querySelector("#startRoomGameButton");
 const backToSetupButton = document.querySelector("#backToSetupButton");
 const lobbyInfoEl = document.querySelector("#lobbyInfo");
+const playerNameInput = document.querySelector("#playerNameInput");
+const roomPlayerCountSelect = document.querySelector("#roomPlayerCountSelect");
+const roomListEl = document.querySelector("#roomList");
+const refreshRoomListButton = document.querySelector("#refreshRoomListButton");
 
 let currentRoomId = null;
 let latestRoomState = null;
 let isCurrentUserHost = false;
 let myPlayerIndex = 0;
 
-joinRoomButton.addEventListener("click", () => {
-  const roomId = roomInput.value.trim().toUpperCase();
+if (joinRoomButton) {
+  joinRoomButton.addEventListener("click", () => {
+    const roomId = roomInput.value.trim().toUpperCase();
+    const playerName = playerNameInput.value.trim() || "Player";
+    const maxPlayers = Number(roomPlayerCountSelect.value);
 
-  if (!roomId) {
-    displayMessage("Please enter a room ID.");
-    return;
-  }
+    if (!roomId) {
+      displayMessage("Please enter a room ID.");
+      return;
+    }
 
-  currentRoomId = roomId;
+    currentRoomId = roomId;
 
-  socket.emit("join-room", currentRoomId);
+    socket.emit("join-room", {
+      roomId,
+      playerName,
+      maxPlayers
+    });
 
-  displayMessage(`Joining room: ${currentRoomId}`);
-});
+    displayMessage(`Joining room: ${currentRoomId}`);
+  });
+}
 
 socket.on("room-message", data => {
   displayMessage(`[Room ${data.roomId}] ${data.message}`);
@@ -80,11 +101,20 @@ socket.on("room-state", data => {
     .join("\n");
 
   if (lobbyInfoEl) {
-    lobbyInfoEl.textContent =
-      `Room ${data.roomId}
-        Status: ${data.status}
-        Players: ${data.players.length}/${data.maxPlayers}
-${playerList}`;
+    lobbyInfoEl.innerHTML = `
+    <div class="room-current-card">
+      <div><strong>Room:</strong> ${data.roomId}</div>
+      <div><strong>Status:</strong> ${data.status}</div>
+      <div><strong>Players:</strong> ${data.players.length}/${data.maxPlayers}</div>
+      <div class="room-player-list">
+        ${data.players.map(player => `
+          <div class="room-player-item">
+            ${player.name}${player.isHost ? " 👑 Host" : ""}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
   }
 
   if (startRoomGameButton) {
@@ -93,6 +123,54 @@ ${playerList}`;
       data.status !== "ready";
   }
 });
+
+socket.on("room-list", rooms => {
+  if (!roomListEl) return;
+
+  if (!rooms || rooms.length === 0) {
+    roomListEl.innerHTML = `<div class="emptyText">No rooms available.</div>`;
+    return;
+  }
+
+  roomListEl.innerHTML = rooms.map(room => {
+    const disabled = room.status === "playing" || room.playerCount >= room.maxPlayers;
+
+    return `
+      <div class="room-list-item">
+        <div>
+          <strong>${room.roomId}</strong>
+          <div class="room-small-text">
+            ${room.status} · ${room.playerCount}/${room.maxPlayers} players
+          </div>
+        </div>
+
+        <button
+          class="quickJoinRoomButton"
+          data-room-id="${room.roomId}"
+          ${disabled ? "disabled" : ""}
+        >
+          Join
+        </button>
+      </div>
+    `;
+  }).join("");
+});
+
+if (roomListEl) {
+  roomListEl.addEventListener("click", e => {
+    const btn = e.target.closest(".quickJoinRoomButton");
+    if (!btn) return;
+
+    roomInput.value = btn.dataset.roomId;
+    joinRoomButton.click();
+  });
+}
+
+if (refreshRoomListButton) {
+  refreshRoomListButton.addEventListener("click", () => {
+    socket.emit("list-rooms");
+  });
+}
 
 socket.on("game-started", data => {
   displayMessage(`Game started in room ${data.roomId} with ${data.playerCount} players.`);
@@ -112,14 +190,16 @@ socket.on("game-state", gameState => {
   render();
 });
 
-startRoomGameButton.addEventListener("click", () => {
-  if (!currentRoomId) {
-    displayMessage("Join a room first.");
-    return;
-  }
+if (startRoomGameButton) {
+  startRoomGameButton.addEventListener("click", () => {
+    if (!currentRoomId) {
+      displayMessage("Join a room first.");
+      return;
+    }
 
-  socket.emit("start-game");
-});
+    socket.emit("start-game");
+  });
+}
 
 const rooms = {};
 
@@ -166,7 +246,7 @@ const state = {
 
 //setup phase
 function showSetupScreen() {
-  document.querySelector("#setupScreen").style.display = "block";
+  document.querySelector("#setupScreen").style.display = "flex";
   document.querySelector("#multiplayerLobbyScreen").style.display = "none";
   document.querySelector("#gameScreen").style.display = "none";
 }
@@ -197,6 +277,7 @@ function applyServerGameState(gameState) {
   state.players = gameState.players;
   state.currentPlayerIndex = gameState.currentPlayerIndex;
   state.playerCount = gameState.playerCount;
+
   const serverPlayerIndex = gameState.players.findIndex(player => {
     return player.socketId === socket.id;
   });
@@ -1137,7 +1218,10 @@ const gameLogEl = document.querySelector("#gameLog");
 let logHistory = [];
 
 function startConfiguredGame(mode) {
-  state.playerCount = Number(playerCountSelect.value);
+  state.playerCount = playerCountSelect
+    ? Number(playerCountSelect.value)
+    : 3;
+
   state.gameMode = mode;
   state.screen = "game";
 
@@ -1151,24 +1235,27 @@ startBotModeButton.addEventListener("click", () => {
 
 startMultiplayerModeButton.addEventListener("click", () => {
   showMultiplayerLobbyScreen();
+  socket.emit("list-rooms");
 });
 
-backToSetupButton.addEventListener("click", () => {
-  currentRoomId = null;
-  latestRoomState = null;
-  isCurrentUserHost = false;
-  myPlayerIndex = 0;
+if (backToSetupButton) {
+  backToSetupButton.addEventListener("click", () => {
+    currentRoomId = null;
+    latestRoomState = null;
+    isCurrentUserHost = false;
+    myPlayerIndex = 0;
 
-  if (lobbyInfoEl) {
-    lobbyInfoEl.textContent = "Join a room to begin.";
-  }
+    if (lobbyInfoEl) {
+      lobbyInfoEl.textContent = "Join a room to begin.";
+    }
 
-  if (startRoomGameButton) {
-    startRoomGameButton.disabled = true;
-  }
+    if (startRoomGameButton) {
+      startRoomGameButton.disabled = true;
+    }
 
-  showSetupScreen();
-});
+    showSetupScreen();
+  });
+}
 
 function setLog(message) {
   logHistory.unshift(message);

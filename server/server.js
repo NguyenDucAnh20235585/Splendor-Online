@@ -1037,7 +1037,7 @@ function normalizePlayers(roomId) {
   room.players = room.players.map((player, index) => {
     return {
       ...player,
-      name: `Player ${index + 1}`,
+      name: player.name || `Player ${index + 1}`,
       playerIndex: index,
       isHost: player.socketId === room.hostSocketId
     };
@@ -1071,6 +1071,19 @@ function sendRoomState(roomId) {
   });
 }
 
+function sendRoomList() {
+  const roomList = Object.entries(rooms).map(([roomId, room]) => {
+    return {
+      roomId,
+      status: room.status,
+      playerCount: room.players.length,
+      maxPlayers: room.maxPlayers
+    };
+  });
+
+  io.emit("room-list", roomList);
+}
+
 function removeSocketFromRoom(socket, roomId) {
   const room = rooms[roomId];
   if (!room) return;
@@ -1080,6 +1093,7 @@ function removeSocketFromRoom(socket, roomId) {
 
   if (room.players.length === 0) {
     delete rooms[roomId];
+    sendRoomList();
     return;
   }
 
@@ -1090,13 +1104,28 @@ function removeSocketFromRoom(socket, roomId) {
   normalizePlayers(roomId);
   updateRoomStatus(roomId);
   sendRoomState(roomId);
+  sendRoomList();
 }
 
 io.on("connection", socket => {
   console.log("Connected:", socket.id);
 
-  socket.on("join-room", rawRoomId => {
-    const roomId = normalizeRoomId(rawRoomId);
+  socket.on("join-room", payload => {
+    const roomId = normalizeRoomId(
+      typeof payload === "string" ? payload : payload?.roomId
+    );
+
+    const playerName = String(
+      typeof payload === "string" ? "" : payload?.playerName || ""
+    ).trim().slice(0, 20) || "Player";
+
+    const requestedMaxPlayers = Number(
+      typeof payload === "string" ? 4 : payload?.maxPlayers
+    );
+
+    const maxPlayers = [2, 3, 4].includes(requestedMaxPlayers)
+      ? requestedMaxPlayers
+      : 4;
 
     if (!isValidRoomId(roomId)) {
       socket.emit("room-message", {
@@ -1114,7 +1143,7 @@ io.on("connection", socket => {
 
     if (!rooms[roomId]) {
       rooms[roomId] = {
-        maxPlayers: 4,
+        maxPlayers,
         minPlayersToStart: 2,
         status: "waiting",
         hostSocketId: socket.id,
@@ -1126,15 +1155,25 @@ io.on("connection", socket => {
     const room = rooms[roomId];
 
     if (room.status === "playing") {
-      socket.emit("room-message", { roomId, message: `Room ${roomId} is already playing.` });
+      socket.emit("room-message", {
+        roomId,
+        message: `Room ${roomId} is already playing.`
+      });
       return;
     }
 
-    const alreadyInRoom = room.players.some(player => player.socketId === socket.id);
+    const alreadyInRoom = room.players.some(player => {
+      return player.socketId === socket.id;
+    });
 
     if (!alreadyInRoom && room.players.length >= room.maxPlayers) {
-      socket.emit("room-message", { roomId, message: `Room ${roomId} is full.` });
+      socket.emit("room-message", {
+        roomId,
+        message: `Room ${roomId} is full.`
+      });
+
       sendRoomState(roomId);
+      sendRoomList();
       return;
     }
 
@@ -1146,7 +1185,7 @@ io.on("connection", socket => {
 
       room.players.push({
         socketId: socket.id,
-        name: `Player ${playerIndex + 1}`,
+        name: playerName,
         playerIndex,
         isHost: socket.id === room.hostSocketId
       });
@@ -1157,10 +1196,18 @@ io.on("connection", socket => {
 
     console.log(`${socket.id} joined room ${roomId}`);
 
-    socket.emit("room-message", { roomId, message: `You joined room ${roomId}` });
-    socket.to(roomId).emit("room-message", { roomId, message: `A new player joined room ${roomId}` });
+    socket.emit("room-message", {
+      roomId,
+      message: `You joined room ${roomId}`
+    });
+
+    socket.to(roomId).emit("room-message", {
+      roomId,
+      message: `A new player joined room ${roomId}`
+    });
 
     sendRoomState(roomId);
+    sendRoomList();
   });
 
   socket.on("start-game", () => {
@@ -1200,6 +1247,7 @@ io.on("connection", socket => {
 
     io.to(roomId).emit("game-state", room.gameState);
     sendRoomState(roomId);
+    sendRoomList();
 
     console.log(`Game started in room ${roomId}`);
   });
@@ -1329,6 +1377,10 @@ io.on("connection", socket => {
     trimLog(gameState);
 
     io.to(roomId).emit("game-state", gameState);
+  });
+
+  socket.on("list-rooms", () => {
+    sendRoomList();
   });
 
   socket.on("buy-card", data => {

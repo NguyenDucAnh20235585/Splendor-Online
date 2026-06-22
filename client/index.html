@@ -11,37 +11,71 @@
 <body>
 
   <div id="setupScreen">
-    <h1>Splendor</h1>
-    <button id="startBotMode">Single Player</button>
-    <button id="startMultiplayerMode">Multiplayer</button>
-    <div class="setupField">
-      <label for="playerCountSelect">Total Players</label>
-      <select id="playerCountSelect">
-        <option value="2">2 Players</option>
-        <option value="3" selected>3 Players</option>
-        <option value="4">4 Players</option>
-      </select>
+    <div class="home-card">
+      <h1>Splendor</h1>
+      <div class="home-subtitle">
+        This is just a web made by a guy that misses her. Hopefully I could forget her someday.
+      </div>
+
+      <div class="home-actions">
+        <button id="startBotMode">Single Player</button>
+        <button id="startMultiplayerMode">Multiplayer</button>
+      </div>
     </div>
   </div>
 
   <div id="multiplayerLobbyScreen" class="screen" style="display: none;">
     <h1>Multiplayer Lobby</h1>
 
-    <div class="setupField">
-      <input id="roomInput" placeholder="Room ID">
-      <button id="joinRoomButton">Join Room</button>
-      <button id="startRoomGameButton" disabled>Start Game</button>
-    </div>
+    <div class="lobby-layout">
+      <section class="panel lobby-panel">
+        <h2>Join / Create Room</h2>
 
-    <div id="lobbyStatus" class="panel">
-      <h2>Lobby Status</h2>
-      <div id="lobbyInfo">Join a room to begin.</div>
-    </div>
+        <div class="setupField lobby-form">
+          <label for="playerNameInput">Your name</label>
+          <input id="playerNameInput" placeholder="Example: Seafeld">
+        </div>
 
-    <div class="setupField">
-      <button id="backToSetupButton">Back</button>
+        <div class="setupField lobby-form">
+          <label for="roomInput">Room ID</label>
+          <input id="roomInput" placeholder="Example: ABC123">
+        </div>
+
+        <div class="setupField lobby-form">
+          <label for="roomPlayerCountSelect">Players</label>
+          <select id="roomPlayerCountSelect">
+            <option value="2" selected>2 Players</option>
+            <option value="3">3 Players</option>
+            <option value="4">4 Players</option>
+          </select>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="joinRoomButton">Join Room</button>
+          <button id="startRoomGameButton" disabled>Start Game</button>
+          <button id="backToSetupButton">Back</button>
+        </div>
+      </section>
+
+      <section id="lobbyStatus" class="panel lobby-panel">
+        <h2>Current Room</h2>
+        <div id="lobbyInfo">Join a room to begin.</div>
+      </section>
+
+      <section class="panel lobby-panel">
+        <div class="lobby-title-row">
+          <h2>Available Rooms</h2>
+          <button id="refreshRoomListButton">Refresh</button>
+        </div>
+
+        <div id="roomList" class="room-list">
+          No rooms yet.
+        </div>
+      </section>
     </div>
   </div>
+
+
   <div id="gameScreen">
 
     <div id="modePanel" class="panel">
@@ -240,9 +274,10 @@
       </div>
 
     </div>
+  </div>
 
-    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
-    <script src="index.js"></script>
+  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <script src="index.js"></script>
 
 </body>
 
