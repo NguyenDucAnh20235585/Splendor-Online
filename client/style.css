@@ -67,7 +67,9 @@ body {
 }
 
 #gameLog {
-  min-height: 80px;
+  height: 180px;
+  max-height: 180px;
+  overflow-y: auto;
   font-size: 14px;
   line-height: 1.4;
 }
@@ -545,4 +547,14 @@ button:disabled {
   border: 2px solid #d6a640;
   box-shadow: 0 0 0 3px rgba(214, 166, 64, 0.22);
   transform: translateY(-2px);
+}
+
+.log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(156, 143, 120, 0.25);
+}
+
+.log-entry:first-child {
+  font-weight: bold;
+  color: #8a5a00;
 }

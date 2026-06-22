@@ -2,15 +2,102 @@ const socket = io("http://localhost:3000");
 
 const messageContainer = document.querySelector("#messageContainer");
 
-function displayMessage(message){
+function displayMessage(message) {
   const div = document.createElement("div");
   div.textContent = message;
+  div.style.whiteSpace = "pre-line";
   messageContainer.appendChild(div);
 }
 
 socket.on("connect", () => {
   displayMessage(`You connected with id: ${socket.id}`);
 });
+
+socket.on("receive-command", data => {
+  displayMessage(data)
+})
+
+const roomInput = document.querySelector("#roomInput");
+const joinRoomButton = document.querySelector("#joinRoomButton");
+const startRoomGameButton = document.querySelector("#startRoomGameButton");
+const backToSetupButton = document.querySelector("#backToSetupButton");
+const lobbyInfoEl = document.querySelector("#lobbyInfo");
+
+let currentRoomId = null;
+let latestRoomState = null;
+let isCurrentUserHost = false;
+
+joinRoomButton.addEventListener("click", () => {
+  const roomId = roomInput.value.trim().toUpperCase();
+
+  if (!roomId) {
+    displayMessage("Please enter a room ID.");
+    return;
+  }
+
+  currentRoomId = roomId;
+
+  socket.emit("join-room", currentRoomId);
+
+  displayMessage(`Joining room: ${currentRoomId}`);
+});
+
+socket.on("room-message", data => {
+  displayMessage(`[Room ${data.roomId}] ${data.message}`);
+});
+
+socket.on("room-state", data => {
+  latestRoomState = data;
+
+  const me = data.players.find(player => player.socketId === socket.id);
+  isCurrentUserHost = !!me && me.isHost;
+
+  const playerList = data.players
+    .map(player => {
+      return `- ${player.name}${player.isHost ? " (Host)" : ""}`;
+    })
+    .join("\n");
+
+  if (lobbyInfoEl) {
+    lobbyInfoEl.textContent =
+      `Room ${data.roomId}
+        Status: ${data.status}
+        Players: ${data.players.length}/${data.maxPlayers}
+${playerList}`;
+  }
+
+  if (startRoomGameButton) {
+    startRoomGameButton.disabled =
+      !isCurrentUserHost ||
+      data.status !== "ready";
+  }
+});
+
+socket.on("game-started", data => {
+  displayMessage(`Game started in room ${data.roomId} with ${data.playerCount} players.`);
+
+  if (startRoomGameButton) {
+    startRoomGameButton.disabled = true;
+  }
+
+  state.playerCount = data.playerCount;
+  state.gameMode = "multiplayer";
+  state.screen = "game";
+
+  resetGameForMode("multiplayer");
+  showGameScreen();
+});
+
+startRoomGameButton.addEventListener("click", () => {
+  if (!currentRoomId) {
+    displayMessage("Join a room first.");
+    return;
+  }
+
+  socket.emit("start-game");
+});
+
+const rooms = {};
 
 const TAKE_COLORS = ["Red", "Green", "Blue", "Black", "White"];
 const ALL_COLORS = ["Red", "Green", "Blue", "Black", "White", "Wild"];
@@ -29,7 +116,7 @@ function createPlayer(type = "human") {
   };
 }
 
-function createPlayers(playerCount){
+function createPlayers(playerCount) {
   return Array.from({ length: playerCount }, (_, index) => {
     return createPlayer(index === 0 ? "human" : "bot");
   });
@@ -54,26 +141,34 @@ const state = {
 };
 
 //setup phase
-function showSetupScreen(){
+function showSetupScreen() {
   document.querySelector("#setupScreen").style.display = "block";
+  document.querySelector("#multiplayerLobbyScreen").style.display = "none";
   document.querySelector("#gameScreen").style.display = "none";
 }
 
-function showGameScreen(){
+function showGameScreen() {
   document.querySelector("#setupScreen").style.display = "none";
+  document.querySelector("#multiplayerLobbyScreen").style.display = "none";
   document.querySelector("#gameScreen").style.display = "grid";
 }
 
+function showMultiplayerLobbyScreen() {
+  document.querySelector("#setupScreen").style.display = "none";
+  document.querySelector("#multiplayerLobbyScreen").style.display = "block";
+  document.querySelector("#gameScreen").style.display = "none";
+}
+
 //support for bot
-function isBotTurn(){
+function isBotTurn() {
   return isBotMode() && getCurrentPlayer().type === "bot";
 }
 
-function isBotMode(){
+function isBotMode() {
   return state.gameMode === "bot";
 }
 
-function isMultiplayerMode(){
+function isMultiplayerMode() {
   return state.gameMode === "multiplayer";
 }
 
@@ -81,10 +176,10 @@ function getCurrentPlayer() {
   return state.players[state.currentPlayerIndex];
 }
 
-function getPlayerDisplayName(index){
+function getPlayerDisplayName(index) {
   const player = state.players[index];
 
-  if (player.type === "human"){
+  if (player.type === "human") {
     return "You";
   }
 
@@ -227,7 +322,7 @@ const ALL_MARKET_CARDS = [
     points: 5,
     cost: { Black: 3, White: 0, Red: 7, Blue: 0, Green: 0 }
   },
-//blue
+  //blue
   {
     id: "blue_1",
     tier: 1,
@@ -875,10 +970,10 @@ let marketBoard = {
 // nobles and decks
 let nobles = [];
 
-function shuffleArray(array){
+function shuffleArray(array) {
   const copy = [...array];
 
-  for (let i = copy.length - 1; i > 0; i--){
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
@@ -886,7 +981,7 @@ function shuffleArray(array){
   return copy;
 }
 
-function buildShuffledMarketDecks(){
+function buildShuffledMarketDecks() {
   return {
     1: shuffleArray(ALL_MARKET_CARDS.filter(card => card.tier === 1)),
     2: shuffleArray(ALL_MARKET_CARDS.filter(card => card.tier === 2)),
@@ -894,20 +989,20 @@ function buildShuffledMarketDecks(){
   };
 }
 
-function buildShuffledNobles(){
+function buildShuffledNobles() {
   return shuffleArray(ALL_NOBLES);
 }
 
-function drawCardFromTier(tier){
+function drawCardFromTier(tier) {
   return marketDecks[tier].shift() || null;
 }
 
-function setupMarketBoard(){
+function setupMarketBoard() {
   marketBoard[1] = [];
   marketBoard[2] = [];
   marketBoard[3] = [];
 
-  for (let i = 0; i < 4; i++){
+  for (let i = 0; i < 4; i++) {
     const c1 = drawCardFromTier(1);
     const c2 = drawCardFromTier(2);
     const c3 = drawCardFromTier(3);
@@ -961,8 +1056,9 @@ const currentModeLabelEl = document.querySelector("#currentModeLabel");
 
 //log
 const gameLogEl = document.querySelector("#gameLog");
+let logHistory = [];
 
-function startConfiguredGame(mode){
+function startConfiguredGame(mode) {
   state.playerCount = Number(playerCountSelect.value);
   state.gameMode = mode;
   state.screen = "game";
@@ -976,14 +1072,40 @@ startBotModeButton.addEventListener("click", () => {
 });
 
 startMultiplayerModeButton.addEventListener("click", () => {
-  startConfiguredGame("multiplayer");
+  showMultiplayerLobbyScreen();
 });
 
-function setLog(message){
-  gameLogEl.textContent = message;
+backToSetupButton.addEventListener("click", () => {
+  currentRoomId = null;
+  latestRoomState = null;
+  isCurrentUserHost = false;
+
+  if (lobbyInfoEl) {
+    lobbyInfoEl.textContent = "Join a room to begin.";
+  }
+
+  if (startRoomGameButton) {
+    startRoomGameButton.disabled = true;
+  }
+
+  showSetupScreen();
+});
+
+function setLog(message) {
+  logHistory.unshift(message);
+
+  if (logHistory.length > 100) {
+    logHistory.pop();
+  }
+
+  gameLogEl.innerHTML = logHistory
+    .map(item => `<div class="log-entry">${item}</div>`)
+    .join("");
+
+  gameLogEl.scrollTop = 0;
 }
 
-function debugSetNearEndGame(){
+function debugSetNearEndGame() {
   if (state.gameOver) return;
   const player = getCurrentPlayer();
 
@@ -1006,15 +1128,15 @@ function debugSetNearEndGame(){
   render();
 }
 
-function totalChip(obj){
+function totalChip(obj) {
   return Object.values(obj).reduce((a, b) => a + b, 0);
 }
 
-function getNobleCount(playerCount){
+function getNobleCount(playerCount) {
   return playerCount + 1;
 }
 
-function createBank(playerCount){
+function createBank(playerCount) {
   let colorChipCount = 7;
 
   if (playerCount === 2) colorChipCount = 4;
@@ -1031,57 +1153,57 @@ function createBank(playerCount){
   };
 }
 
-function renderActionStatus(){
+function renderActionStatus() {
   const actionModeTextEl = document.querySelector("#actionModeText");
   const actionHintTextEl = document.querySelector("#actionHintText");
 
   if (!actionModeTextEl || !actionHintTextEl) return;
 
-  if (state.currentAction === "take"){
+  if (state.currentAction === "take") {
     actionModeTextEl.textContent = "Take Chips";
     actionHintTextEl.textContent = "Pick chips from Bank, then press Take Chips.";
     return;
   }
 
-  if (state.currentAction === "reserve"){
-  actionModeTextEl.textContent = "Reserve Card";
+  if (state.currentAction === "reserve") {
+    actionModeTextEl.textContent = "Reserve Card";
 
-  if (state.selectedReserveIndex === null && state.selectedDeckTier === null) {
-    actionHintTextEl.textContent = "Click a market card or deck stack, then press Reserve Card again.";
-  } else {
-    actionHintTextEl.textContent = "Selection is highlighted. Press Reserve Card to confirm, or Cancel.";
+    if (state.selectedReserveIndex === null && state.selectedDeckTier === null) {
+      actionHintTextEl.textContent = "Click a market card or deck stack, then press Reserve Card again.";
+    } else {
+      actionHintTextEl.textContent = "Selection is highlighted. Press Reserve Card to confirm, or Cancel.";
+    }
+
+    return;
   }
 
-  return;
-}
+  if (state.currentAction === "buy") {
+    actionModeTextEl.textContent = "Buy Card";
 
-  if (state.currentAction === "buy"){
-  actionModeTextEl.textContent = "Buy Card";
+    if (state.selectedBuyIndex === null && state.selectedReservedCardIndex === null) {
+      actionHintTextEl.textContent = "Click a market card or reserved card, then press Buy Card again.";
+    } else {
+      actionHintTextEl.textContent = "Selected card is highlighted. Press Buy Card to confirm, or Cancel.";
+    }
 
-  if (state.selectedBuyIndex === null && state.selectedReservedCardIndex === null){
-    actionHintTextEl.textContent = "Click a market card or reserved card, then press Buy Card again.";
-  } else {
-    actionHintTextEl.textContent = "Selected card is highlighted. Press Buy Card to confirm, or Cancel.";
+    return;
   }
-
-  return;
-}
 }
 
-function render(){
+function render() {
   const currentTurnPlayer = getCurrentPlayer();
   const player = state.players[state.humanPlayerIndex];
 
-  for (const c of TAKE_COLORS){
-  document.querySelector(`#currentPlayer${c}Chip`).textContent = player.chips[c];
-  document.querySelector(`#bankRemaining${c}Chip`).textContent = state.bank[c];
+  for (const c of TAKE_COLORS) {
+    document.querySelector(`#currentPlayer${c}Chip`).textContent = player.chips[c];
+    document.querySelector(`#bankRemaining${c}Chip`).textContent = state.bank[c];
   }
 
   document.querySelector("#currentPlayerWildChip").textContent = player.chips.Wild;
   document.querySelector("#bankRemainingWildChip").textContent = state.bank.Wild;
 
   const parts = [];
-  for (const c of TAKE_COLORS){
+  for (const c of TAKE_COLORS) {
     if (selected[c] > 0) parts.push(`${c} x${selected[c]}`);
   }
   selectedTextEl.textContent = parts.length ? parts.join(", ") : "none";
@@ -1090,45 +1212,45 @@ function render(){
   const selectedTotalChip = totalChip(selected);
 
   confirmButton.disabled =
-  (state.currentAction !== "take") ||
-  (selectedTotalChip === 0) ||
-  (playerTotalChip + selectedTotalChip > 10) ||
-  (!isValidTakeSelection());
+    (state.currentAction !== "take") ||
+    (selectedTotalChip === 0) ||
+    (playerTotalChip + selectedTotalChip > 10) ||
+    (!isValidTakeSelection());
 
   clearButton.disabled = (selectedTotalChip === 0);
 
-  document.querySelectorAll("#currentPlayerPanel .chipButton").forEach(btn =>{
+  document.querySelectorAll("#currentPlayerPanel .chipButton").forEach(btn => {
     const action = btn.dataset.action;
     const color = btn.dataset.color;
 
-    if (color === "Wild"){
+    if (color === "Wild") {
       btn.disabled = true;
       return;
     }
 
-    if (action === "add"){
+    if (action === "add") {
       const noSpace = playerTotalChip >= 10;
       const remainingToSelect = state.bank[color] - selected[color];
       btn.disabled = noSpace || (remainingToSelect <= 0);
     }
 
-    if (action === "remove"){
+    if (action === "remove") {
       btn.disabled = player.chips[color] <= 0;
     }
   });
 
-  if (state.selectedReserveIndex === null){
-  selectedReserveTextEl.textContent = "none";
-  
-  } 
-  
-  else {
-  const { cardId, tier } = state.selectedReserveIndex;
-  const card = marketBoard[tier].find(card => card.id === cardId);
+  if (state.selectedReserveIndex === null) {
+    selectedReserveTextEl.textContent = "none";
 
-  selectedReserveTextEl.textContent = card
-    ? `${card.color} | Level ${card.tier} | ${card.points} VP`
-    : "none";
+  }
+
+  else {
+    const { cardId, tier } = state.selectedReserveIndex;
+    const card = marketBoard[tier].find(card => card.id === cardId);
+
+    selectedReserveTextEl.textContent = card
+      ? `${card.color} | Level ${card.tier} | ${card.points} VP`
+      : "none";
   }
 
   confirmReserveButton.disabled =
@@ -1160,7 +1282,7 @@ function render(){
   currentPlayerBlueBonusEl.textContent = player.bonusChip.Blue;
   currentPlayerBlackBonusEl.textContent = player.bonusChip.Black;
   currentPlayerWhiteBonusEl.textContent = player.bonusChip.White;
-  
+
   currentPlayerLabelEl.textContent = getPlayerDisplayName(state.humanPlayerIndex);
   currentModeLabelEl.textContent = isBotMode() ? "Vs Bot" : "Multiplayer";
 
@@ -1180,28 +1302,28 @@ function render(){
   renderPlayersOverview();
   renderActionStatus();
 
-  if (state.gameOver){
-  confirmButton.disabled = true;
-  clearButton.disabled = true;
-  confirmReserveButton.disabled = true;
-  reserveModeButton.disabled = true;
-  cancelActionButton.disabled = true;
-  debugEndGameButton.disabled = true;
+  if (state.gameOver) {
+    confirmButton.disabled = true;
+    clearButton.disabled = true;
+    confirmReserveButton.disabled = true;
+    reserveModeButton.disabled = true;
+    cancelActionButton.disabled = true;
+    debugEndGameButton.disabled = true;
   }
 
-  if (isBotTurn()){
-  confirmButton.disabled = true;
-  clearButton.disabled = true;
-  confirmReserveButton.disabled = true;
-  reserveModeButton.disabled = true;
-  cancelActionButton.disabled = true;
+  if (isBotTurn()) {
+    confirmButton.disabled = true;
+    clearButton.disabled = true;
+    confirmReserveButton.disabled = true;
+    reserveModeButton.disabled = true;
+    cancelActionButton.disabled = true;
   }
 
 }
 
-function isValidTakeSelection(){
+function isValidTakeSelection() {
   const totalSel = totalChip(selected);
-  if (totalSel === 0) return true; 
+  if (totalSel === 0) return true;
 
   const pickedColors = TAKE_COLORS.filter(c => selected[c] > 0);
   const distinct = pickedColors.length;
@@ -1217,13 +1339,13 @@ function isValidTakeSelection(){
   return threeChipDistinct || twoSame;
 }
 
-function finishGame(){
+function finishGame() {
   state.gameOver = true;
 
   const rankedPlayers = state.players
     .map((player, index) => ({ player, index }))
     .sort((a, b) => {
-      if (b.player.victoryPoints !== a.player.victoryPoints){
+      if (b.player.victoryPoints !== a.player.victoryPoints) {
         return b.player.victoryPoints - a.player.victoryPoints;
       }
 
@@ -1239,7 +1361,7 @@ function finishGame(){
     );
   });
 
-  if (winners.length === 1){
+  if (winners.length === 1) {
     const winner = winners[0];
     const label = getPlayerDisplayName(winner.index);
 
@@ -1257,11 +1379,11 @@ function finishGame(){
   render();
 }
 
-function endTurn(){
+function endTurn() {
   const playerJustFinishedIndex = state.currentPlayerIndex;
   const playerJustFinished = state.players[playerJustFinishedIndex];
 
-  if (!state.gameEnding && playerJustFinished.victoryPoints >= 15){
+  if (!state.gameEnding && playerJustFinished.victoryPoints >= 15) {
     state.gameEnding = true;
     state.endGameTriggeredBy = playerJustFinishedIndex;
   }
@@ -1275,7 +1397,7 @@ function endTurn(){
 
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
 
-  if (state.gameEnding && nextPlayerIndex === state.endGameTriggeredBy){
+  if (state.gameEnding && nextPlayerIndex === state.endGameTriggeredBy) {
     finishGame();
     return;
   }
@@ -1283,21 +1405,21 @@ function endTurn(){
   state.currentPlayerIndex = nextPlayerIndex;
   render();
 
-if (isBotTurn() && !state.gameOver){
-  setTimeout(() => {
-    runBotTurn();
-  }, 1000);
-}
+  if (isBotTurn() && !state.gameOver) {
+    setTimeout(() => {
+      runBotTurn();
+    }, 1000);
+  }
 }
 
-function clearSelectionOnly(){
+function clearSelectionOnly() {
   for (const c of TAKE_COLORS) selected[c] = 0;
 }
 
-function applyTakeSelection(){
+function applyTakeSelection() {
   const player = getCurrentPlayer();
 
-  for (const c of TAKE_COLORS){
+  for (const c of TAKE_COLORS) {
     const k = selected[c];
     if (k <= 0) continue;
     if (state.bank[c] < k) continue;
@@ -1308,7 +1430,7 @@ function applyTakeSelection(){
   }
 }
 
-function confirmTake(){
+function confirmTake() {
 
   if (state.gameOver) return;
   if (isBotTurn()) return;
@@ -1330,32 +1452,32 @@ function confirmTake(){
     return;
   }
 
-const takenChips = {};
+  const takenChips = {};
 
-for (const c of TAKE_COLORS){
-  if (selected[c] > 0){
-    takenChips[c] = selected[c];
+  for (const c of TAKE_COLORS) {
+    if (selected[c] > 0) {
+      takenChips[c] = selected[c];
+    }
   }
+
+  socket.emit("take-chips", {
+    playerIndex: state.currentPlayerIndex,
+    chips: takenChips
+  });
+
+  applyTakeSelection();
+
+  setLog(`${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`);
+  endTurn();
 }
 
-socket.emit("take-chips", {
-  playerIndex: state.currentPlayerIndex,
-  chips: takenChips
-});
-
-applyTakeSelection();
-
-setLog(`${currentPlayerName} took ${takenParts.join(", ")}. ${nextPlayerName}'s turn.`);
-endTurn();
-}
-
-function clearSelection(){
+function clearSelection() {
   clearSelectionOnly();
   render();
 }
 
 
-function trySelectChip(color){
+function trySelectChip(color) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
   if (state.currentAction !== "take") return;
@@ -1365,7 +1487,7 @@ function trySelectChip(color){
 
   selected[color] += 1;
 
-  if (!isValidTakeSelection()){
+  if (!isValidTakeSelection()) {
     selected[color] -= 1;
     return;
   }
@@ -1373,7 +1495,7 @@ function trySelectChip(color){
   render();
 }
 
-currentPlayerSection.addEventListener("click", (e) =>{
+currentPlayerSection.addEventListener("click", (e) => {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
@@ -1385,17 +1507,17 @@ currentPlayerSection.addEventListener("click", (e) =>{
   const action = btn.dataset.action;
   const color = btn.dataset.color;
 
-  if (action === "add"){
-  trySelectChip(color);
-}
+  if (action === "add") {
+    trySelectChip(color);
+  }
 
-if (action === "remove"){
-  const player = getCurrentPlayer();
-  if (player.chips[color] <= 0) return;
-  player.chips[color] -= 1;
-  state.bank[color] += 1;
-  render();
-}
+  if (action === "remove") {
+    const player = getCurrentPlayer();
+    if (player.chips[color] <= 0) return;
+    player.chips[color] -= 1;
+    state.bank[color] += 1;
+    render();
+  }
 });
 
 const bankChipsEl = document.querySelector("#bankChips");
@@ -1409,7 +1531,8 @@ bankChipsEl.addEventListener("click", (e) => {
 });
 
 // mode changes
-function resetGameForMode(mode){
+function resetGameForMode(mode) {
+  logHistory = [];
   state.players = createPlayers(state.playerCount);
   state.currentPlayerIndex = 0;
   state.gameMode = mode;
@@ -1427,7 +1550,7 @@ function resetGameForMode(mode){
   setupMarketBoard();
   nobles = buildShuffledNobles().slice(0, getNobleCount(state.playerCount));
 
-  for (const color of TAKE_COLORS){
+  for (const color of TAKE_COLORS) {
     selected[color] = 0;
   }
 
@@ -1440,11 +1563,11 @@ function resetGameForMode(mode){
   render();
 }
 
-function setGameMode(mode){
+function setGameMode(mode) {
   resetGameForMode(mode);
 }
 
-function createColorPieceHTML(color, value, type){
+function createColorPieceHTML(color, value, type) {
   return `
     <span class="color-piece ${type}-piece ${color.toLowerCase()}" title="${color}">
       <strong>${value}</strong>
@@ -1452,19 +1575,19 @@ function createColorPieceHTML(color, value, type){
   `;
 }
 
-function createCardHTML(card, index, tier){
+function createCardHTML(card, index, tier) {
   const costHTML = Object.entries(card.cost)
-  .filter(([color, amount]) => amount > 0)
-  .map(([color, amount]) => {
-    return createColorPieceHTML(color, amount, "chip");
-  })
-  .join("");
+    .filter(([color, amount]) => amount > 0)
+    .map(([color, amount]) => {
+      return createColorPieceHTML(color, amount, "chip");
+    })
+    .join("");
 
   const isSelectedReserve =
-  state.currentAction === "reserve" &&
-  state.selectedReserveIndex &&
-  state.selectedReserveIndex.cardId === card.id &&
-  state.selectedReserveIndex.tier === tier;
+    state.currentAction === "reserve" &&
+    state.selectedReserveIndex &&
+    state.selectedReserveIndex.cardId === card.id &&
+    state.selectedReserveIndex.tier === tier;
 
   const isSelectedBuy =
     state.currentAction === "buy" &&
@@ -1490,10 +1613,10 @@ function createCardHTML(card, index, tier){
   `;
 }
 
-function createDeckStackHTML(tier){
+function createDeckStackHTML(tier) {
   const selectedClass =
     state.currentAction === "reserve" &&
-    state.selectedDeckTier === tier
+      state.selectedDeckTier === tier
       ? "is-selected-deck"
       : "";
 
@@ -1505,7 +1628,7 @@ function createDeckStackHTML(tier){
   `;
 }
 
-function renderNobles(){
+function renderNobles() {
   const noblesEl = document.querySelector("#noblesArea");
   noblesEl.innerHTML = nobles.map(createNobleHTML).join("");
 }
@@ -1539,7 +1662,7 @@ function renderNobles(){
 //   .join("");
 // }
 
-function createMiniTokenHTML(color, value){
+function createMiniTokenHTML(color, value) {
   const shortName = {
     Red: "Red",
     Green: "Green",
@@ -1556,7 +1679,7 @@ function createMiniTokenHTML(color, value){
   `;
 }
 
-function createPlayerPieceHTML(color, value, type){
+function createPlayerPieceHTML(color, value, type) {
   return `
     <span class="player-piece ${type}-piece ${color.toLowerCase()}" title="${color}">
       <strong>${value}</strong>
@@ -1564,18 +1687,18 @@ function createPlayerPieceHTML(color, value, type){
   `;
 }
 
-function createPlayerPieceGroupHTML(values, colors, type){
+function createPlayerPieceGroupHTML(values, colors, type) {
   return colors
     .map(color => createPlayerPieceHTML(color, values[color] || 0, type))
     .join("");
 }
 
-function renderPlayersOverview(){
+function renderPlayersOverview() {
   if (!playersOverviewEl) return;
 
   playersOverviewEl.innerHTML = state.players
-  .map((player, index) => ({ player, index }))
-  .filter(({ index }) => index !== state.humanPlayerIndex)
+    .map((player, index) => ({ player, index }))
+    .filter(({ index }) => index !== state.humanPlayerIndex)
     .map(({ player, index }) => {
       const roleLabel = getPlayerDisplayName(index);
 
@@ -1617,13 +1740,13 @@ function renderPlayersOverview(){
     }).join("");
 }
 
-function createNobleHTML(noble){
+function createNobleHTML(noble) {
   const requirementHTML = Object.entries(noble.requiredBonuses)
-  .filter(([color, amount]) => amount > 0)
-  .map(([color, amount]) => {
-    return createColorPieceHTML(color, amount, "bonus");
-  })
-  .join("");
+    .filter(([color, amount]) => amount > 0)
+    .map(([color, amount]) => {
+      return createColorPieceHTML(color, amount, "bonus");
+    })
+    .join("");
 
   return `
     <div class="card noble-card">
@@ -1648,14 +1771,14 @@ const marketTier1El = document.querySelector("#marketTier1");
 const reservedCardsEl = document.querySelector("#currentPlayerReservedCards");
 
 //important
-function buyMarketCardById(cardId, tier){
+function buyMarketCardById(cardId, tier) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
   const card = marketBoard[tier].find(card => card.id === cardId);
   if (!card) return;
 
-  if (!canAffordCard(card)){
+  if (!canAffordCard(card)) {
     setLog(`${getPlayerDisplayName(state.currentPlayerIndex)} does not have enough chips to buy this card.`);
     return;
   }
@@ -1680,7 +1803,7 @@ function buyMarketCardById(cardId, tier){
 
   const claimedNoble = claimAvailableNoble(player);
 
-  if (claimedNoble){
+  if (claimedNoble) {
     setLog(`${currentPlayerName} bought a ${card.color} card (${card.points} VP), claimed ${claimedNoble.id}. ${nextPlayerName}'s turn.`);
   } else {
     setLog(`${currentPlayerName} bought a ${card.color} card (${card.points} VP). ${nextPlayerName}'s turn.`);
@@ -1689,18 +1812,18 @@ function buyMarketCardById(cardId, tier){
   endTurn();
 }
 
-marketAreaEl.addEventListener("click", (e) =>{
+marketAreaEl.addEventListener("click", (e) => {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
   const deckEl = e.target.closest(".deck-stack");
 
-  if (deckEl){
+  if (deckEl) {
     if (state.currentAction !== "reserve") return;
 
     const tier = Number(deckEl.dataset.tier);
 
-    if (marketDecks[tier].length <= 0){
+    if (marketDecks[tier].length <= 0) {
       setLog(`No cards left in Tier ${tier} deck.`);
       return;
     }
@@ -1719,7 +1842,7 @@ marketAreaEl.addEventListener("click", (e) =>{
   const cardId = cardEl.dataset.id;
   const tier = Number(cardEl.dataset.tier);
 
-  if (state.currentAction === "reserve"){
+  if (state.currentAction === "reserve") {
     state.selectedReserveIndex = { cardId, tier };
     state.selectedDeckTier = null;
     state.selectedBuyIndex = null;
@@ -1727,7 +1850,7 @@ marketAreaEl.addEventListener("click", (e) =>{
     return;
   }
 
-  if (state.currentAction === "buy"){
+  if (state.currentAction === "buy") {
     state.selectedBuyIndex = { cardId, tier };
     state.selectedReserveIndex = null;
     state.selectedDeckTier = null;
@@ -1736,7 +1859,7 @@ marketAreaEl.addEventListener("click", (e) =>{
   }
 });
 
-function buyReservedCardByIndex(index){
+function buyReservedCardByIndex(index) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
@@ -1745,7 +1868,7 @@ function buyReservedCardByIndex(index){
 
   if (!card) return;
 
-  if (!canAffordCard(card)){
+  if (!canAffordCard(card)) {
     setLog(`${getPlayerDisplayName(state.currentPlayerIndex)} does not have enough chips to buy this reserved card.`);
     return;
   }
@@ -1762,7 +1885,7 @@ function buyReservedCardByIndex(index){
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   const nextPlayerName = getPlayerDisplayName(nextPlayerIndex);
 
-  if (claimedNoble){
+  if (claimedNoble) {
     setLog(`${currentPlayerName} bought a reserved ${card.color} card (${card.points} VP), claimed ${claimedNoble.id}. ${nextPlayerName}'s turn.`);
   } else {
     setLog(`${currentPlayerName} bought a reserved ${card.color} card (${card.points} VP). ${nextPlayerName}'s turn.`);
@@ -1771,7 +1894,7 @@ function buyReservedCardByIndex(index){
   endTurn();
 }
 
-reservedCardsEl.addEventListener("click", (e) =>{
+reservedCardsEl.addEventListener("click", (e) => {
   if (state.gameOver) return;
   if (isBotTurn()) return;
   if (state.currentAction !== "buy") return;
@@ -1793,13 +1916,13 @@ buyModeButton.addEventListener("click", () => {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
-  if (state.currentAction === "buy" && state.selectedBuyIndex !== null){
+  if (state.currentAction === "buy" && state.selectedBuyIndex !== null) {
     const { cardId, tier } = state.selectedBuyIndex;
     buyMarketCardById(cardId, tier);
     return;
   }
 
-  if (state.currentAction === "buy" && state.selectedReservedCardIndex !== null){
+  if (state.currentAction === "buy" && state.selectedReservedCardIndex !== null) {
     buyReservedCardByIndex(state.selectedReservedCardIndex);
     return;
   }
@@ -1815,11 +1938,11 @@ buyModeButton.addEventListener("click", () => {
   render();
 });
 
-function canAffordCard(card){
+function canAffordCard(card) {
   const player = getCurrentPlayer();
   let wildNeeded = 0;
 
-  for (const color of BONUS_COLORS){
+  for (const color of BONUS_COLORS) {
     const cost = card.cost[color] || 0;
     const bonus = player.bonusChip[color] || 0;
     const chips = player.chips[color] || 0;
@@ -1833,18 +1956,18 @@ function canAffordCard(card){
   return wildNeeded <= player.chips.Wild;
 }
 
-function getVisibleMarketCards(){
+function getVisibleMarketCards() {
   return [...marketBoard[1], ...marketBoard[2], ...marketBoard[3]];
 }
 
-function getAffordableMarketCards(){
+function getAffordableMarketCards() {
   return getVisibleMarketCards().filter(card => canAffordCard(card));
 }
 
-function payForCard(card){
+function payForCard(card) {
   const player = getCurrentPlayer();
 
-  for (const color of BONUS_COLORS){
+  for (const color of BONUS_COLORS) {
     const cost = card.cost[color] || 0;
     const bonus = player.bonusChip[color] || 0;
 
@@ -1856,7 +1979,7 @@ function payForCard(card){
 
     const stillMissing = discountedCost - useNormalChips;
 
-    if (stillMissing > 0){
+    if (stillMissing > 0) {
       player.chips.Wild -= stillMissing;
       state.bank.Wild += stillMissing;
     }
@@ -1864,13 +1987,13 @@ function payForCard(card){
 }
 
 // botv1
-function getCardTotalCost(card){
+function getCardTotalCost(card) {
   return BONUS_COLORS.reduce((sum, color) => {
     return sum + (card.cost[color] || 0);
   }, 0);
 }
 
-function chooseBestAffordableCard(cards){
+function chooseBestAffordableCard(cards) {
   if (cards.length === 0) return null;
 
   const sortedCards = [...cards].sort((a, b) => {
@@ -1881,7 +2004,7 @@ function chooseBestAffordableCard(cards){
   return sortedCards[0];
 }
 
-function chooseTargetCardForBot(){
+function chooseTargetCardForBot() {
   const unavailableCards = getVisibleMarketCards().filter(card => !canAffordCard(card));
 
   if (unavailableCards.length === 0) return null;
@@ -1894,17 +2017,17 @@ function chooseTargetCardForBot(){
   return sortedCards[0];
 }
 
-function getNeededColorsForCard(player, card){
+function getNeededColorsForCard(player, card) {
   const neededColors = [];
 
-  for (const color of BONUS_COLORS){
+  for (const color of BONUS_COLORS) {
     const cost = card.cost[color] || 0;
     const bonus = player.bonusChip[color] || 0;
     const chips = player.chips[color] || 0;
     const discountedCost = Math.max(0, cost - bonus);
     const missing = Math.max(0, discountedCost - chips);
 
-    if (missing > 0 && state.bank[color] > 0){
+    if (missing > 0 && state.bank[color] > 0) {
       neededColors.push(color);
     }
   }
@@ -1912,10 +2035,10 @@ function getNeededColorsForCard(player, card){
   return neededColors;
 }
 
-function botTakeChips(){
+function botTakeChips() {
   const player = getCurrentPlayer();
 
-  if (totalChip(player.chips) >= 10){
+  if (totalChip(player.chips) >= 10) {
     return false;
   }
 
@@ -1923,29 +2046,29 @@ function botTakeChips(){
 
   let colorsToTake = [];
 
-  if (targetCard){
+  if (targetCard) {
     colorsToTake = getNeededColorsForCard(player, targetCard).slice(0, 3);
   }
 
-  if (colorsToTake.length === 0){
+  if (colorsToTake.length === 0) {
     colorsToTake = TAKE_COLORS
       .filter(color => state.bank[color] > 0)
       .slice(0, 3);
   }
 
-  for (const color of TAKE_COLORS){
+  for (const color of TAKE_COLORS) {
     selected[color] = 0;
   }
 
-  for (const color of colorsToTake){
+  for (const color of colorsToTake) {
     selected[color] = 1;
   }
 
   if (
     !isValidTakeSelection() ||
     totalChip(player.chips) + totalChip(selected) > 10
-  ){
-    for (const color of TAKE_COLORS){
+  ) {
+    for (const color of TAKE_COLORS) {
       selected[color] = 0;
     }
 
@@ -1953,7 +2076,7 @@ function botTakeChips(){
       .filter(color => state.bank[color] > 0)
       .slice(0, Math.min(3, 10 - totalChip(player.chips)));
 
-    for (const color of fallbackColors){
+    for (const color of fallbackColors) {
       selected[color] = 1;
     }
   }
@@ -1962,8 +2085,8 @@ function botTakeChips(){
     !isValidTakeSelection() ||
     totalChip(selected) === 0 ||
     totalChip(player.chips) + totalChip(selected) > 10
-  ){
-    for (const color of TAKE_COLORS){
+  ) {
+    for (const color of TAKE_COLORS) {
       selected[color] = 0;
     }
 
@@ -1983,7 +2106,7 @@ function botTakeChips(){
   return true;
 }
 
-function botBuyCard(){
+function botBuyCard() {
   const affordableCards = getAffordableMarketCards();
   const chosenCard = chooseBestAffordableCard(affordableCards);
 
@@ -1997,7 +2120,7 @@ function botBuyCard(){
   const tier = chosenCard.tier;
   const cardIndex = marketBoard[tier].findIndex(card => card.id === chosenCard.id);
 
-  if (cardIndex !== -1){
+  if (cardIndex !== -1) {
     marketBoard[tier].splice(cardIndex, 1);
     const replacement = drawCardFromTier(tier);
     if (replacement) marketBoard[tier].push(replacement);
@@ -2009,7 +2132,7 @@ function botBuyCard(){
 
   const botName = getPlayerDisplayName(state.currentPlayerIndex);
 
-  if (claimedNoble){
+  if (claimedNoble) {
     setLog(`${botName} bought ${chosenCard.color} (${chosenCard.points} VP) and claimed ${claimedNoble.id}.`);
   } else {
     setLog(`${botName} bought ${chosenCard.color} (${chosenCard.points} VP).`);
@@ -2020,7 +2143,7 @@ function botBuyCard(){
 }
 
 //run bot
-function runBotTurn(){
+function runBotTurn() {
   if (state.gameOver) return;
   if (!isBotTurn()) return;
 
@@ -2036,19 +2159,19 @@ function runBotTurn(){
   endTurn();
 }
 
-function applyCardReward(card){
+function applyCardReward(card) {
   const player = getCurrentPlayer();
   player.victoryPoints += card.points;
   player.bonusChip[card.color] += 1;
 }
 
-function canClaimNoble(player, noble){
+function canClaimNoble(player, noble) {
   return BONUS_COLORS.every(color =>
     (player.bonusChip[color] || 0) >= (noble.requiredBonuses[color] || 0)
   );
 }
 
-function claimAvailableNoble(player){
+function claimAvailableNoble(player) {
   const nobleIndex = nobles.findIndex(noble => canClaimNoble(player, noble));
   if (nobleIndex === -1) return null;
 
@@ -2061,12 +2184,12 @@ function claimAvailableNoble(player){
 }
 
 // reserve card, as well as putting index for easier find
-function renderOwnedCards(){
+function renderOwnedCards() {
   const player = state.players[state.humanPlayerIndex];
   const ownedEl = document.querySelector("#currentPlayerOwnedCards");
 
   ownedEl.innerHTML = player.ownedCards
-    .map((card, index) =>{
+    .map((card, index) => {
       return `
         <div class="card">
           <div class="card-top">
@@ -2082,7 +2205,7 @@ function renderOwnedCards(){
     .join("");
 }
 
-function enterReserveMode(){
+function enterReserveMode() {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
@@ -2092,7 +2215,7 @@ function enterReserveMode(){
   render();
 }
 
-function reserveCardById(cardId, tier){
+function reserveCardById(cardId, tier) {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
@@ -2117,7 +2240,7 @@ function reserveCardById(cardId, tier){
   const replacement = drawCardFromTier(tier);
   if (replacement) marketBoard[tier].push(replacement);
 
-  if (state.bank.Wild > 0 && totalChip(player.chips) < 10){
+  if (state.bank.Wild > 0 && totalChip(player.chips) < 10) {
     player.chips.Wild += 1;
     state.bank.Wild -= 1;
   }
@@ -2131,7 +2254,7 @@ function reserveCardById(cardId, tier){
   endTurn();
 }
 
-function confirmReserveCard(){
+function confirmReserveCard() {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
@@ -2139,11 +2262,11 @@ function confirmReserveCard(){
 
   if (state.currentAction !== "reserve") return;
 
-  if (state.selectedReserveIndex === null && state.selectedDeckTier === null){
+  if (state.selectedReserveIndex === null && state.selectedDeckTier === null) {
     return;
   }
 
-  if (player.reservedCards.length >= 3){
+  if (player.reservedCards.length >= 3) {
     setLog(`${getPlayerDisplayName(state.currentPlayerIndex)} cannot reserve more than 3 cards.`);
     return;
   }
@@ -2152,7 +2275,7 @@ function confirmReserveCard(){
   let tier = null;
   let reservedFromDeck = false;
 
-  if (state.selectedReserveIndex !== null){
+  if (state.selectedReserveIndex !== null) {
     const { cardId } = state.selectedReserveIndex;
     tier = state.selectedReserveIndex.tier;
 
@@ -2168,12 +2291,12 @@ function confirmReserveCard(){
     if (replacement) marketBoard[tier].push(replacement);
   }
 
-  if (state.selectedDeckTier !== null){
+  if (state.selectedDeckTier !== null) {
     tier = state.selectedDeckTier;
     card = drawCardFromTier(tier);
     reservedFromDeck = true;
 
-    if (!card){
+    if (!card) {
       setLog(`No cards left in Tier ${tier} deck.`);
       return;
     }
@@ -2181,7 +2304,7 @@ function confirmReserveCard(){
 
   player.reservedCards.push(card);
 
-  if (state.bank.Wild > 0 && totalChip(player.chips) < 10){
+  if (state.bank.Wild > 0 && totalChip(player.chips) < 10) {
     player.chips.Wild += 1;
     state.bank.Wild -= 1;
   }
@@ -2190,7 +2313,7 @@ function confirmReserveCard(){
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   const nextPlayerName = getPlayerDisplayName(nextPlayerIndex);
 
-  if (reservedFromDeck){
+  if (reservedFromDeck) {
     setLog(`${currentPlayerName} reserved a face-down Tier ${tier} card. ${nextPlayerName}'s turn.`);
   } else {
     setLog(`${currentPlayerName} reserved a ${card.color} level ${card.tier} card. ${nextPlayerName}'s turn.`);
@@ -2199,18 +2322,18 @@ function confirmReserveCard(){
   endTurn();
 }
 
-function renderReservedCards(){
+function renderReservedCards() {
   const player = state.players[state.humanPlayerIndex];
   const reservedEl = document.querySelector("#currentPlayerReservedCards");
 
   reservedEl.innerHTML = player.reservedCards
-    .map((card, index) =>{
+    .map((card, index) => {
       const costHTML = Object.entries(card.cost)
-      .filter(([color, amount]) => amount > 0)
-      .map(([color, amount]) => {
-        return createColorPieceHTML(color, amount, "chip");
-      })
-      .join("");
+        .filter(([color, amount]) => amount > 0)
+        .map(([color, amount]) => {
+          return createColorPieceHTML(color, amount, "chip");
+        })
+        .join("");
 
       const isSelectedReserved =
         state.currentAction === "buy" &&
@@ -2236,7 +2359,7 @@ function renderReservedCards(){
     .join("");
 }
 
-function renderMarket(){
+function renderMarket() {
   marketTier3El.innerHTML =
     createDeckStackHTML(3) +
     marketBoard[3]
@@ -2256,7 +2379,7 @@ function renderMarket(){
       .join("");
 }
 
-function cancelAction(){
+function cancelAction() {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
