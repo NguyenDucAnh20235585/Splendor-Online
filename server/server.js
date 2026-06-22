@@ -1236,6 +1236,124 @@ io.on("connection", socket => {
     console.log(`Game started in room ${roomId}`);
   });
 
+  socket.on("reserve-card", data => {
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    const gameState = room.gameState;
+
+    if (room.status !== "playing" || !gameState) {
+      socket.emit("room-message", {
+        roomId,
+        message: "Game has not started yet."
+      });
+      return;
+    }
+
+    const player = getPlayerBySocketId(gameState, socket.id);
+
+    if (!player) {
+      socket.emit("room-message", {
+        roomId,
+        message: "You are not a player in this game."
+      });
+      return;
+    }
+
+    if (player.playerIndex !== gameState.currentPlayerIndex) {
+      socket.emit("room-message", {
+        roomId,
+        message: "It is not your turn."
+      });
+      return;
+    }
+
+    if (player.reservedCards.length >= 3) {
+      socket.emit("room-message", {
+        roomId,
+        message: "You cannot reserve more than 3 cards."
+      });
+      return;
+    }
+
+    const tier = Number(data.tier);
+
+    if (![1, 2, 3].includes(tier)) {
+      socket.emit("room-message", {
+        roomId,
+        message: "Invalid card tier."
+      });
+      return;
+    }
+
+    let card = null;
+    let reservedFromDeck = false;
+
+    if (data.fromDeck) {
+      card = gameState.marketDecks[tier].shift() || null;
+      reservedFromDeck = true;
+
+      if (!card) {
+        socket.emit("room-message", {
+          roomId,
+          message: `No cards left in Tier ${tier} deck.`
+        });
+        return;
+      }
+    } else {
+      const cardId = String(data.cardId || "");
+      const cardIndex = gameState.marketBoard[tier].findIndex(card => card.id === cardId);
+
+      if (cardIndex === -1) {
+        socket.emit("room-message", {
+          roomId,
+          message: "Selected card was not found."
+        });
+        return;
+      }
+
+      card = gameState.marketBoard[tier].splice(cardIndex, 1)[0];
+
+      const replacement = gameState.marketDecks[tier].shift() || null;
+      if (replacement) {
+        gameState.marketBoard[tier].push(replacement);
+      }
+    }
+
+    player.reservedCards.push(card);
+
+    if (gameState.bank.Wild > 0 && totalChip(player.chips) < 10) {
+      player.chips.Wild += 1;
+      gameState.bank.Wild -= 1;
+    }
+
+    const currentPlayerName = player.name || `Player ${player.playerIndex + 1}`;
+
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+    const nextPlayerName = nextPlayer.name || `Player ${nextPlayerIndex + 1}`;
+
+    gameState.currentPlayerIndex = nextPlayerIndex;
+    gameState.currentAction = "take";
+
+    if (reservedFromDeck) {
+      gameState.log.unshift(
+        `${currentPlayerName} reserved a face-down Tier ${tier} card. ${nextPlayerName}'s turn.`
+      );
+    } else {
+      gameState.log.unshift(
+        `${currentPlayerName} reserved a ${card.color} level ${card.tier} card. ${nextPlayerName}'s turn.`
+      );
+    }
+
+    if (gameState.log.length > 100) {
+      gameState.log.pop();
+    }
+
+    io.to(roomId).emit("game-state", gameState);
+  });
+
   socket.on("room-test-message", data => {
     if (!data || !data.roomId) return;
 

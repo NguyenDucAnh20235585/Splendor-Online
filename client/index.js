@@ -2292,6 +2292,11 @@ function enterReserveMode() {
   if (state.gameOver) return;
   if (isBotTurn()) return;
 
+  if (isMultiplayerMode() && state.currentPlayerIndex !== state.humanPlayerIndex) {
+    setLog("It is not your turn.");
+    return;
+  }
+
   state.currentAction = "reserve";
   state.selectedReserveIndex = null;
   setLog(`Player ${state.currentPlayerIndex + 1} is choosing a card to reserve.`);
@@ -2340,6 +2345,45 @@ function reserveCardById(cardId, tier) {
 function confirmReserveCard() {
   if (state.gameOver) return;
   if (isBotTurn()) return;
+
+  if (isMultiplayerMode()) {
+    if (state.currentPlayerIndex !== state.humanPlayerIndex) {
+      setLog("It is not your turn.");
+      return;
+    }
+
+    if (state.currentAction !== "reserve") return;
+
+    if (state.selectedReserveIndex === null && state.selectedDeckTier === null) {
+      return;
+    }
+
+    const player = state.players[state.humanPlayerIndex];
+
+    if (player.reservedCards.length >= 3) {
+      setLog("You cannot reserve more than 3 cards.");
+      return;
+    }
+
+    if (state.selectedDeckTier !== null) {
+      socket.emit("reserve-card", {
+        fromDeck: true,
+        tier: state.selectedDeckTier
+      });
+
+      return;
+    }
+
+    const { cardId, tier } = state.selectedReserveIndex;
+
+    socket.emit("reserve-card", {
+      fromDeck: false,
+      cardId,
+      tier
+    });
+
+    return;
+  }
 
   const player = getCurrentPlayer();
 
