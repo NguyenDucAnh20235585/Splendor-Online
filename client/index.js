@@ -1,5 +1,5 @@
 const socket = typeof io === "function"
-  ? io("http://localhost:3000")
+  ? io("splendor-online-production-4c74.up.railway.app")
   : {
     id: null,
     on: () => { },
