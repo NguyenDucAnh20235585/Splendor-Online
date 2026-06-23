@@ -4,8 +4,10 @@ const io = require("socket.io")(PORT, {
   cors: {
     origin: [
       "http://localhost:5500",
-      "http://127.0.0.1:5500"
-    ]
+      "http://127.0.0.1:5500",
+      "https://illustrious-malabi-00e954.netlify.app"
+    ],
+    methods: ["GET", "POST"]
   }
 });
 
