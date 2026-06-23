@@ -1,9 +1,8 @@
 const socket = typeof io === "function"
-  ? io("splendor-online-production-4c74.up.railway.app")
+  ? io("https://splendor-online-production-4c74.up.railway.app")
   : {
-    id: null,
-    on: () => { },
-    emit: () => {
+    on() { },
+    emit() {
       console.warn("Socket.IO server is not running.");
     }
   };
