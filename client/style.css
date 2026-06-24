@@ -902,3 +902,40 @@ body {
   text-align: center;
   margin: 0;
 }
+
+.player-count-field {
+  width: 100%;
+  margin-top: 18px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-count-field label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #5f5648;
+  text-align: left;
+}
+
+#playerCountSelect {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d2c2a5;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #222;
+  font-size: 15px;
+  cursor: pointer;
+  outline: none;
+}
+
+#playerCountSelect:hover {
+  background: #efe2c8;
+}
+
+#playerCountSelect:focus {
+  border-color: #d6a640;
+  box-shadow: 0 0 0 3px rgba(214, 166, 64, 0.18);
+}
