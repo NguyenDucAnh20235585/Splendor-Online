@@ -5,19 +5,39 @@ const { Server } = require("socket.io");
 const PORT = process.env.PORT || 3000;
 
 const app = express();
-const server = http.createServer(app);
+
+const allowedOrigins = [
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "https://illustrious-malabi-00e954.netlify.app"
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 app.get("/", (req, res) => {
   res.send("Splendor backend is running.");
 });
 
+const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5500",
-      "http://127.0.0.1:5500",
-      "https://illustrious-malabi-00e954.netlify.app"
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
@@ -1516,4 +1536,6 @@ io.on("connection", socket => {
   });
 });
 
-console.log(`Socket.IO server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Express + Socket.IO server running on port ${PORT}`);
+});
