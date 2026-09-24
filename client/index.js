@@ -1,5 +1,5 @@
 const socket = typeof io === "function"
-  ? io("https://splendor-online-production-4c74.up.railway.app")
+  ? io("https://splendor-online-production-6e5d.up.railway.app")
   : {
     on() { },
     emit() {
